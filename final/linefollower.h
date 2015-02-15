@@ -1,3 +1,9 @@
+/**
+ * The LineFollower class is intended to use a QTRRC light sensor array from
+ * Pololu to follow a line. The LineFollower class takes control fot the sensor
+ * and the drive motors when running. Inherits from Loop so that it can run a
+ * PID controller on the drive motors at a consistent frequency.
+ */
 #ifndef __LINEFOLLOWER_H__
 #define __LINEFOLLOWER_H__
 #include <Servo.h>
@@ -5,8 +11,16 @@
 #include "Arduino.h"
 #include "loop.h"
 
+// LineFollower class. See description at start of file.
+// In order to actually follow the line, a PID controller calculates a
+// correction value using the current position of the sensor over the line and
+// then takes that value and adds it to the normal speed of one motor and
+// subtracts it from the normal speed of the other motor, causing the robot to
+// go straight if it si right over the line, and turn otherwise.
 class LineFollower : public Loop {
  public:
+  // Constructor takes array of digital input pins, the number of pins, and the
+  // left and right motor ports.
   LineFollower(unsigned char *pins, unsigned char num_sensors, uint8_t left,
                uint8_t right)
       : qtrrc(pins, num_sensors),
@@ -24,19 +38,12 @@ class LineFollower : public Loop {
     right_.attach(right);
   }
 
-  void calibrate() {
-    pinMode(13, OUTPUT);
-    digitalWrite(
-        13,
-        HIGH);  // turn on Arduino's LED to indicate we are in calibration mode
-    for (int i = 0; i < 400; i++)  // make the calibration take about 10 seconds
-    {
-      qtrrc.calibrate();  // reads all sensors 10 times at 2500 us per read
-                          // (i.e. ~25 ms per call)
-    }
-    digitalWrite(13, LOW);  // turn off Arduino's LED to indicate we are through
-                            // with calibration
-  }
+  // Takes ~10 seconds to calibrate line sensor array. Be sure to move all of
+  // the sensors over both the lightest and darkest colors that they will
+  // observe.
+  // Turns arduino board LED (DIO pin 13) on to indicate calibration is
+  // occurring.
+  void Calibrate();
 
   void set_pid(float p, float i, float d) {
     p_ = p;
@@ -44,45 +51,38 @@ class LineFollower : public Loop {
     d_ = d;
   }
 
-  unsigned *sensors() {
-    unsigned values[num_sensors_];
-    qtrrc.readCalibrated(values);
-    return values;
-  }
+  // Returns a num_sensors length array of sensor values, normalized to be from
+  // 0 - 1000. 1000 = darkest, 0 = lightest.
+  unsigned *sensors();
 
  private:
-  uint8_t calc() {
-    int error = setpoint_ - read();
-    sum_ += error;
-    uint8_t retval = p_ * error + i_ * sum_ + d_ * (error - prev_error_);
-    prev_error_ = error;
-    return retval;
-  }
+  // Performs actual PID calculation.
+  uint8_t Calc();
 
-  void write(uint8_t pidout) {
-    uint8_t maxpid = maxspeed_ - motorspeed_;
-    if (pidout > maxpid) pidout = maxpid;
-    else if (pidout < -maxpid) pidout = -maxpid;
-    uint8_t left = motorspeed_ + pidout;
-    uint8_t right = motorspeed_ - pidout;
-    left_.write(left);
-    right_.write(right);
-  }
+  // Uses the output from the Calc function to determine motor speeds and write
+  // them.
+  void Write(uint8_t pidout);
 
-  int read() {
-    return qtrrc.readLine(new unsigned[num_sensors_]);
-  }
+  // Reads the current position of the sensor over the line.
+  int Read() { return qtrrc.readLine(new unsigned[num_sensors_]); }
 
+  // Typical motorspeed when going straight.
   uint8_t motorspeed_;
+  // Maximum allowed speed.
   uint8_t maxspeed_;
+  // Goal--generally centers robot on line.
   int setpoint_;
+  // PID variables.
   int prev_error_;
   long sum_;
   float p_, i_, d_;
 
+  // Number of individual sensors on array.
   uint8_t num_sensors_;
 
+  // Object for sensor array.
   QTRSensorsRC qtrrc;
+  // Left and right drivetrain motors.
   Servo left_, right_;
 };
 #endif  // __LINEFOLLOWER_H__

@@ -14,15 +14,15 @@ class Loop {
   void set_period(unsigned period) { period_ = period; }
 
   // Checks if it sit ime to call the run() function and does so if necessary.
-  void update() {
+  void Update() {
     if (micros() >= endtime_) {
       endtime_ += period_;
-      run();
+      Run();
     }
   }
   // The run method should contain whatever you want done at the appropriate
   // interval.
-  virtual void run();
+  virtual void Run()=0;
 
  private:
   unsigned long endtime_;
