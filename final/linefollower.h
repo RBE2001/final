@@ -22,7 +22,7 @@ class LineFollower : public Loop {
   // Constructor takes array of digital input pins, the number of pins, and the
   // left and right motor ports.
   LineFollower(unsigned char *pins, unsigned char num_sensors, uint8_t left,
-               uint8_t right)
+               uint8_t right, bool linverted=false, bool rinverted=false)
       : qtrrc(pins, num_sensors),
         p_(0),
         i_(0),
@@ -31,11 +31,13 @@ class LineFollower : public Loop {
         sum_(0),
         setpoint_((num_sensors - 1) * 1000 / 2),
         num_sensors_(num_sensors),
-        Loop(1e4 /* 100Hz */),
+        Loop(1000000UL /* 1Hz */),
         motorspeed_(120),
-        maxspeed_(180) {
-    left_.attach(left);
-    right_.attach(right);
+        maxspeed_(180),
+        linv_(linverted),
+        rinv_(rinverted) {
+    left_->attach(left);
+    right_->attach(right);
   }
 
   // Takes ~10 seconds to calibrate line sensor array. Be sure to move all of
@@ -51,9 +53,14 @@ class LineFollower : public Loop {
     d_ = d;
   }
 
+  void Run() { Write(Calc()); }
+
   // Returns a num_sensors length array of sensor values, normalized to be from
   // 0 - 1000. 1000 = darkest, 0 = lightest.
   unsigned *sensors();
+
+  Servo *left() { return left_; }
+  Servo *right() { return right_; }
 
  private:
   // Performs actual PID calculation.
@@ -83,6 +90,7 @@ class LineFollower : public Loop {
   // Object for sensor array.
   QTRSensorsRC qtrrc;
   // Left and right drivetrain motors.
-  Servo left_, right_;
+  Servo *left_, *right_;
+  bool linv_, rinv_;
 };
 #endif  // __LINEFOLLOWER_H__

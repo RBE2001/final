@@ -30,6 +30,8 @@ unsigned *LineFollower::sensors() {
 uint8_t LineFollower::Calc() {
   // Calculates error.
   int error = setpoint_ - Read();
+  Serial.print(error);
+  Serial.print("\t");
   sum_ += error;
   uint8_t retval = p_ * error + i_ * sum_ + d_ * (error - prev_error_);
   prev_error_ = error;
@@ -45,6 +47,11 @@ void LineFollower::Write(uint8_t pidout) {
   // Calculate speeds for left and right and actually perform the write.
   uint8_t left = motorspeed_ + pidout;
   uint8_t right = motorspeed_ - pidout;
-  left_.write(left);
-  right_.write(right);
+  if (linv_) left = 180 - left;
+  if (rinv_) right = 180 - right;
+  Serial.print(left);
+  Serial.print("\t");
+  Serial.println(right);
+  //left_->write(left);
+  //right_->write(right);
 }

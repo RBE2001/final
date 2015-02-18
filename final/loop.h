@@ -9,9 +9,9 @@
 
 class Loop {
  public:
-  Loop(unsigned period /*microseconds*/) : period_(period), endtime_(0) {}
+  Loop(unsigned long period /*microseconds*/) : period_(period), endtime_(0) {}
 
-  void set_period(unsigned period) { period_ = period; }
+  void set_period(unsigned long period) { period_ = period; }
 
   // Checks if it sit ime to call the run() function and does so if necessary.
   void Update() {
@@ -26,7 +26,7 @@ class Loop {
 
  private:
   unsigned long endtime_;
-  unsigned period_;
+  unsigned long period_;
 };
 
 #endif  // __LOOP_H__

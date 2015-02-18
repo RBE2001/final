@@ -8,83 +8,45 @@
 #include "linefollower.h"
 #include "bluetooth.h"
 
-#define goLED       2
-#define goSW        3
-#define spareLED   23
-#define storLED1  46
-#define storLED2  48
-#define storLED4  50
-#define storLED8  52
+const uint8_t lmotor = 4;
+const uint8_t rmotor = 5;
+const bool linverted = false;
+const bool rinverted = true;
+const uint8_t team = 8;
 
-#define splyLED1  47
-#define splyLED2  49
-#define splyLED4  51
-#define splyLED8  53
-
+const uint8_t button = 3;
+const unsigned char num_sensors = 8;
+unsigned char linepins[num_sensors] = {46, 44, 42, 40, 38, 36, 34, 32};
 Bluetooth *bt;
+LineFollower *lf;
 
 volatile bool go = false;
 volatile uint8_t radlevel = 0;
 
 void setup() {
   Serial.begin(115200);
-  bt = new Bluetooth(21);
+  Serial.println("Hello.");
+  bt = new Bluetooth(team);
+  lf = new LineFollower(linepins, num_sensors, lmotor, rmotor, linverted, rinverted);
+  Serial.println("Done constructing.");
 
-  // set up the onboard and 'spare' LEDs and init them to the off state
-  pinMode(spareLED, OUTPUT);
-  digitalWrite(spareLED, LOW);
 
-  // set up the received packet data LEDs and init them to the off state
-  pinMode(splyLED1, OUTPUT);
-  digitalWrite(splyLED1, LOW);
-  pinMode(splyLED2, OUTPUT);
-  digitalWrite(splyLED2, LOW);
-  pinMode(splyLED4, OUTPUT);
-  digitalWrite(splyLED4, LOW);
-  pinMode(splyLED8, OUTPUT);
-  digitalWrite(splyLED8, LOW);
-  pinMode(storLED1, OUTPUT);
-  digitalWrite(storLED1, LOW);
-  pinMode(storLED2, OUTPUT);
-  digitalWrite(storLED2, LOW);
-  pinMode(storLED4, OUTPUT);
-  digitalWrite(storLED4, LOW);
-  pinMode(storLED8, OUTPUT);
-  digitalWrite(storLED8, LOW);
+  pinMode(button, INPUT_PULLUP);
+  while (digitalRead(button));
+  Serial.println("Calibrating.");
+  lf->Calibrate();
+  Serial.println("Done Calibrating.");
 
-  // set up the GO button, the GO LED, and the external interrupt for the button
-  pinMode(goLED, OUTPUT);
-  digitalWrite(goLED, LOW);
-  pinMode(goSW, INPUT_PULLUP);
-  attachInterrupt(1, extint_1ISR, FALLING);
+  lf->set_pid(1e-2, 0.0, 0.0);
 
+  attachInterrupt(1 /*DIO 3*/, goButton, RISING);
 }
 
-void extint_1ISR(void) {
-  go = true;
-  radlevel = (radlevel + 1) % 3;
-  switch (radlevel) {
-    case 0:
-      bt->set_radlevel(Bluetooth::kNone);
-      break;
-    case 1:
-      bt->set_radlevel(Bluetooth::kSpent);
-      break;
-    case 2:
-      bt->set_radlevel(Bluetooth::kNew);
-      break;
-  }
+void goButton() {
+  //go = true;
 }
 
 void loop() {
   if (go) bt->Update();
-  digitalWrite(splyLED1, bt->supply(0));
-  digitalWrite(splyLED2, bt->supply(1));
-  digitalWrite(splyLED4, bt->supply(2));
-  digitalWrite(splyLED8, bt->supply(3));
-  digitalWrite(storLED1, bt->storage(0));
-  digitalWrite(storLED2, bt->storage(1));
-  digitalWrite(storLED4, bt->storage(2));
-  digitalWrite(storLED8, bt->storage(3));
-  digitalWrite(goLED, bt->stopped());
+  lf->Update();
 }
