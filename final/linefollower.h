@@ -29,13 +29,15 @@ class LineFollower : public Loop {
         d_(0),
         prev_error_(0),
         sum_(0),
-        setpoint_((num_sensors - 1) * 1000 / 2),
+        setpoint_(3500),
         num_sensors_(num_sensors),
-        Loop(1000000UL /* 1Hz */),
+        Loop(50000UL /* 20Hz */),
         motorspeed_(120),
         maxspeed_(180),
         linv_(linverted),
         rinv_(rinverted) {
+    left_ = new Servo;
+    right_ = new Servo;
     left_->attach(left);
     right_->attach(right);
   }
@@ -64,14 +66,16 @@ class LineFollower : public Loop {
 
  private:
   // Performs actual PID calculation.
-  uint8_t Calc();
+  int8_t Calc();
 
   // Uses the output from the Calc function to determine motor speeds and write
   // them.
-  void Write(uint8_t pidout);
+  void Write(int8_t pidout);
 
   // Reads the current position of the sensor over the line.
-  int Read() { return qtrrc.readLine(new unsigned[num_sensors_]); }
+  int Read() { return qtrrc.readLine(sensor_buffer); }
+
+  unsigned sensor_buffer[32];
 
   // Typical motorspeed when going straight.
   uint8_t motorspeed_;

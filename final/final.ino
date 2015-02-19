@@ -8,8 +8,8 @@
 #include "linefollower.h"
 #include "bluetooth.h"
 
-const uint8_t lmotor = 4;
-const uint8_t rmotor = 5;
+const uint8_t lmotor = 10;
+const uint8_t rmotor = 11;
 const bool linverted = false;
 const bool rinverted = true;
 const uint8_t team = 8;
