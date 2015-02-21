@@ -34,8 +34,8 @@ int8_t LineFollower::Calc() {
   if (retval > 90) retval = 90;
   if (retval < -90) retval = -90;
   prev_error_ = error;
-  Serial.print(retval);
-  Serial.print("\t");
+  //Serial.print(retval);
+  //Serial.print("\t");
   return (int8_t)retval;
 }
 
@@ -50,9 +50,9 @@ void LineFollower::Write(int8_t pidout) {
   uint8_t right = motorspeed_ - pidout;
   if (linv_) left = 180 - left;
   if (rinv_) right = 180 - right;
-  Serial.print(left);
-  Serial.print("\t");
-  Serial.println(right);
+  //Serial.print(left);
+  //Serial.print("\t");
+  //Serial.println(right);
   left_->write(left);
   right_->write(right);
 }

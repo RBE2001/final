@@ -32,8 +32,8 @@ class LineFollower : public Loop {
         setpoint_(3500),
         num_sensors_(num_sensors),
         Loop(50000UL /* 20Hz */),
-        motorspeed_(120),
-        maxspeed_(180),
+        motorspeed_(110),
+        maxspeed_(130),
         linv_(linverted),
         rinv_(rinverted) {
     left_ = new Servo;
