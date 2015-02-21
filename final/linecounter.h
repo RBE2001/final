@@ -9,7 +9,7 @@
 
 class LineCounter : public Loop {
  public:
-  LineCounter(uint8_t port, int cutoff=500, int delay=200)
+  LineCounter(uint8_t port, int cutoff=200, int delay=400)
       : port_(port),
         kCutoff(cutoff),
         kDelay(delay),
@@ -30,6 +30,8 @@ class LineCounter : public Loop {
       if (sensor > kCutoff /*over line*/) {
         if (inc_) count_++;
         else count_--;
+        Serial.print("Count changed to:\t");
+        Serial.println(count_);
         // Found line, now reset timeout_.
         timeout_ = millis() + kDelay;
       }

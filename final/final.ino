@@ -1,4 +1,6 @@
-// Currently contains code for testing bluetooth code on field-provided robot.
+// Problems to figure out:
+// --Where we might get false positives from line counters.
+// --Where we end up after turning back onto center line.
 #include <Servo.h>
 #include <QTRSensors.h>
 #include <BluetoothClient.h>
@@ -74,7 +76,7 @@ uint8_t nearline = 0;
 // Reactor: 0 for down, 1 for up.
 // Supply/Storage: 0 - 3.
 // -1 Means undecided.
-uint8_t goal = 0;
+volatile int goal = 0;
 
 // whether we have re-supplied reactor 0.
 bool zerodone = false;
@@ -111,14 +113,18 @@ void setup() {
   lf->set_pid(1e-2, 0.0, 0.0);
 }
 
+// For serial debugging;
+unsigned long next_update = 0;
 void loop() {
   switch (state) {
     case kLine:
       updatelf = true;
       // Make decisions based on whether we have a rod.
+      int dirdiff;
+      Direction goaldir;
       switch (rodstate) {
         case kGetReactor:
-          if (digitalRead(vtrigger)) {
+          if (!digitalRead(vtrigger)) {
             state = kReactorPull;
             writeMotors(0, 0);
             updatelf = false;
@@ -145,10 +151,13 @@ void loop() {
         case kStore:
           // If goal is undecided or no longer feasible.
           if (goal == -1 || !bt->storage(goal)) {
+            goal = 1;
+            /*
             if (bt->storage(0)) goal = 0;
             if (bt->storage(1)) goal = 1;
             if (bt->storage(2)) goal = 2;
             if (bt->storage(3)) goal = 3;
+            */
           }
           if (goal == -1) {
             // Something is wrong; No storage is available.
@@ -158,15 +167,20 @@ void loop() {
           }
 
           // Make sure that we are pointing the right direction.
-          Direction goaldir;
           // Determine what direction we should be facing.
           if (locstate == kCenter) {
-            if (nearline > goal) goaldir = kDown;
+            if ((dirstate == kUp && nearline > goal) ||
+                (dirstate == kDown && nearline == goal)) {
+              goaldir = kLeft;
+              locstate = kStorageLines;
+              nearline = goal;
+            }
+            else if (nearline > goal) goaldir = kDown;
             else goaldir = kUp;
           }
           else goaldir = kLeft;
 
-          int dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
+          dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
           if (dirdiff != 0) {
             Turn(abs(dirdiff) * turn90, (dirdiff > 0));
             state = kTurn;
@@ -175,21 +189,8 @@ void loop() {
             break; // May as well quit this case statement.
           }
 
-          // Check to see whether we have just noticed the line we want.
-          if ((dirstate == kUp && nearline > goal) ||
-              (dirstate == kDown && nearline == goal)) {
-            // Turn left if we were going up; turn right if we were going down.
-            Turn(turn90, dirstate == kUp);
-            state = kTurn;
-            updatelf = false;
-            dirstate = kLeft;
-            locstate = kStorageLines;
-            break; // May as well quit to let turn execute.
-          }
-
           // If we are on the lines and our trigger is hit, then we have arrived!
-          // XXX: digitalRead(vtrigger)'s are backwards.
-          if (locstate != kCenter && digitalRead(vtrigger)) {
+          if (locstate != kCenter && !digitalRead(vtrigger)) {
             writeMotors(0, 0);
             updatelf = false;
             goal = -1;
@@ -204,10 +205,13 @@ void loop() {
           // Refactor to reuse code.
           // If goal is undecided or no longer feasible.
           if (goal == -1 || !bt->supply(goal)) {
+            goal = 2;
+            /*
             if (bt->supply(0)) goal = 0;
             if (bt->supply(1)) goal = 1;
             if (bt->supply(2)) goal = 2;
             if (bt->supply(3)) goal = 3;
+            */
           }
           if (goal == -1) {
             // Something is wrong; No storage is available.
@@ -217,20 +221,25 @@ void loop() {
           }
 
           // Make sure that we are pointing the right direction.
-          Direction goaldir;
           // Determine what direction we should be facing.
           // We are either on the right line and need to follow it, on the
           // center and need to go up/down, or on the other side and need to get
           // to the center.
           if (locstate == kCenter) {
-            if (nearline > goal) goaldir = kDown;
+            if ((dirstate == kUp && nearline > goal) ||
+                (dirstate == kDown && nearline == goal)) {
+              goaldir = kRight;
+              locstate = kSupplyLines;
+              nearline = goal;
+            }
+            else if (nearline > goal) goaldir = kDown;
             else goaldir = kUp;
           } else if (locstate == kSupplyLines)
             goaldir = kRight;
           else if (locstate == kStorageLines)
             goaldir = kRight;
 
-          int dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
+          dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
           if (dirdiff != 0) {
             Turn(abs(dirdiff) * turn90, (dirdiff > 0));
             state = kTurn;
@@ -239,33 +248,86 @@ void loop() {
             break; // May as well quit this case statement.
           }
 
-          // Check to see whether we have just noticed the line we want.
-          if ((dirstate == kUp && nearline > goal) ||
-              (dirstate == kDown && nearline == goal)) {
-            // Turn right if we were going up; turn left if we were going down.
-            Turn(turn90, dirstate == kDown);
-            state = kTurn;
-            updatelf = false;
-            dirstate = kRight;
-            locstate = kSupplyLines;
-            break; // May as well quit to let turn execute.
-          }
-
           // Stop and turn if we are on the wrong side and hit the center line.
-          if (locstate == kStorageLines && rcounter->counts()) {
+          if (locstate == kStorageLines && rcounter->count()) {
             if (goal == nearline) {
               // No need to turn; just go straight.
               locstate = kSupplyLines;
             }
-            bool up = nearline < goal;
+            else {
+              locstate = kCenter;
+              bool up = nearline < goal;
+
+              // If we need to go up, then we turn left to go up.
+              Turn(turn90, up);
+              state = kTurn;
+              updatelf = false;
+              dirstate = up ? kUp : kDown;
+            }
+            break;
+          }
+
+          // If we are on the lines and our trigger is hit, then we have arrived!
+          if (locstate != kCenter && !digitalRead(vtrigger)) {
+            writeMotors(0, 0);
+            updatelf = false;
+            goal = -1;
+            state = kSupplyPull;
+            break;
+          }
+          break; // case kGetSupply
+        case kSetReactor:
+          if (!digitalRead(vtrigger)) {
+            state = kReactorDrop;
+            writeMotors(0, 0);
+            updatelf = false;
+            goal = -1; // Store will need to decide where to put this.
+            zerodone = true;
+            break;
+          }
+
+          if (goal == -1) {
+            goal = zerodone ? 1 : 0;
+          }
+
+          // Make sure that we are pointing the right direction.
+          // Determine what direction we should be facing.
+          if (locstate == kCenter) {
+            goaldir = goal ? kUp : kDown;
+          }
+          else if (locstate = kSupplyLines) goaldir = kLeft;
+          else if (locstate = kStorageLines) goaldir = kRight;
+
+          dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
+          if (dirdiff != 0) {
+            Turn(abs(dirdiff) * turn90, (dirdiff > 0));
+            state = kTurn;
+            updatelf = false;
+            dirstate = goaldir;
+            break; // May as well quit this case statement.
+          }
+
+          // Stop and turn if we are on the sides. hit the center line.
+          if (locstate != kCenter && rcounter->count()) {
+            locstate = kCenter;
+            bool up = goal;
+            bool leftside = locstate == kStorageLines;
+            bool leftturn;
+            // 4 possibilities: coming from left->up, left->down, right->up,
+            // right->down.
+            if (up && leftside || !up && !leftside) {
+              leftturn = true;
+            }
+            else leftturn = false;
 
             // If we need to go up, then we turn left to go up.
-            Turn(turn90, up);
+            Turn(turn90, leftturn);
             state = kTurn;
             updatelf = false;
             dirstate = up ? kUp : kDown;
-            break;
           }
+
+
 
           break; // case kSetReactor
       }  // switch rodstate
@@ -274,25 +336,26 @@ void loop() {
       if (TurnUpdate()) state = kLine;
       break; // case kTurn
     default:
+      Serial.println("Backing Up.");
       writeMotors(-20, -20);
       //XXX: Remove this delay. We shouldn't have time delays in here.
       delay(200);
       writeMotors(0, 0);
-      state = kLine;
       if (state == kReactorPull) rodstate = kStore;
       if (state == kReactorDrop) rodstate = kGetReactor;
       if (state == kSupplyPull) rodstate = kSetReactor;
       if (state == kStorageDrop) rodstate = kGetSupply;
+      state = kLine;
       break;
   } // switch state.
 
   // Update appropriate loops.
   bt->Update();
-  if (bt->stopped()) {
+  if (false) {//bt->stopped()) {
     updatelf == false;
     if (state != kTurn) writeMotors(0, 0);
   }
-  if (updatelf) lf->Update();
+  //if (updatelf) Serial.println("Line Following."); //lf->Update();
   // We only want to update the counter when we are pure line following.
   // When following the center line, we want to:
   // -Decrement if dirstate == kDown and nearline > 0.
@@ -300,6 +363,7 @@ void loop() {
   // When on the side lines, we want to set to zero and let it update.
   if (state == kLine) {
     if (locstate == kCenter) {
+      rcounter->set_count(nearline);
       if (dirstate == kDown && nearline > 0) {
         rcounter->increment(false);
         rcounter->Update();
@@ -308,6 +372,7 @@ void loop() {
         rcounter->increment(true);
         rcounter->Update();
       }
+      nearline = rcounter->count();
     }
     else {
       rcounter->reset();
@@ -316,13 +381,31 @@ void loop() {
     }
   }
   armpid->Update();
+
+  if (millis() > next_update) {
+    Serial.print("State:\t");
+    Serial.print(state);
+    Serial.print("\tRod:\t");
+    Serial.print(rodstate);
+    Serial.print("\tDir:\t");
+    Serial.print(dirstate);
+    Serial.print("\tLoc:\t");
+    Serial.print(locstate);
+    Serial.print("\tGoal:\t");
+    Serial.print(goal);
+    Serial.print("  \tLine:\t");
+    Serial.print(nearline);
+    if (updatelf) Serial.print("\tLining");
+    Serial.println();
+    next_update = millis() + 250;
+  }
 }
 
 void writeMotors(int left, int right) {
   left = linverted ? left : -left;
   right = rinverted ? right : -right;
-  lmotor->write(90 + left);
-  rmotor->write(90 + right);
+//  lmotor->write(90 + left);
+//  rmotor->write(90 + right);
 }
 
 unsigned long turn_end = 0;
