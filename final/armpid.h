@@ -50,11 +50,11 @@ class ArmPID : public Loop {
   // Performs the PID calculations, using the current setpoint and reading from
   // the ADC to calculate a value in units of the Servo::write function,
   // although it will be centered on zero and may be inverted.
-  uint8_t Calc();
+  int Calc();
 
   // Convert between the output of the PID loop (which centers on zero and may
   // be inverted) to useful motor values (typically 0 - 180).
-  uint8_t OutToRaw(uint8_t out) { return out + 90; }
+  uint8_t OutToRaw(int out) { return out + 90; }
 
   // Current setpoint to use when calculating error.
   int setpoint_;

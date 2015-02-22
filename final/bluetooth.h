@@ -74,9 +74,9 @@ class Bluetooth : public Loop {
     state_.grip = kNoRod;
     state_.op = kIdle;
     // Initialize bluetooth.
-    //pinMode(14, INPUT_PULLUP);
-    //pinMode(15, INPUT_PULLUP);
-    Serial1.begin(115200);
+    pinMode(14, INPUT_PULLUP);
+    pinMode(15, INPUT_PULLUP);
+    Serial3.begin(115200);
   }
 
   // Run function called by Loop::Update. Will send out heartbeat, radiation

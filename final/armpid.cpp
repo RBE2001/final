@@ -3,12 +3,21 @@
 #include <Servo.h>
 
 // Performs simple PID calculation.
-uint8_t ArmPID::Calc() {
+int ArmPID::Calc() {
   // Calculate Error. Not the analogRead blocks until ADC finishes reading.
   int error = setpoint_ - analogRead(pot_);
-  sum_ += error;
+  sum_ += (error > 20) ? 20 : error;
   // Perform actual PID calculation.
-  uint8_t retval = p_ * error + i_ * sum_ + d_ * (error - prev_error_);
+  int retval = p_ * error + i_ * sum_ + d_ * (error - prev_error_);
+  int max = 20;
+  if (retval > max) retval = max;
+  if (retval < -max) retval = -max;
   prev_error_ = error;
+  /*
+  Serial.print("Error:\t");
+  Serial.print(error);
+  Serial.print("\tOut:\t");
+  Serial.println(retval);
+  */
   return retval;
 }

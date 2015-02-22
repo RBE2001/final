@@ -9,7 +9,7 @@
 
 class LineCounter : public Loop {
  public:
-  LineCounter(uint8_t port, int cutoff=200, int delay=400)
+  LineCounter(uint8_t port, int cutoff=500, int delay=400)
       : port_(port),
         kCutoff(cutoff),
         kDelay(delay),

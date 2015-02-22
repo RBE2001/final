@@ -26,12 +26,25 @@ Bluetooth *bt;
 LineFollower *lf;
 Servo *lmotor, *rmotor; // Same as used in lf.
 LineCounter *lcounter /*Unused*/, *rcounter;
-ArmPID *armpid;
-const uint8_t armmotor = 100, armpot = 100;
+ArmPID *arm;
+const uint8_t armmotor = 9, armpot = 2;
 
 const unsigned long turn90 = 1100;
 const unsigned long turn180 = ((float)turn90 * 1.9);
 const unsigned long turndelay = 300;
+
+const int closegrip = 180;
+const int opengrip = 90;
+const uint8_t gripservo = 7;
+Servo gripper;
+
+const int flatwrist = 150;
+const int vertwrist = 50;
+const uint8_t wristservo = 8;
+Servo wrist;
+
+const int armdown = 190;
+const int armup = 275;
 
 volatile bool go = false;
 volatile uint8_t radlevel = 0;
@@ -55,6 +68,14 @@ enum RodAction {
   kGetSupply,
   kSetReactor,
 } rodstate;
+
+enum PlaceAction {
+  kStartArm, // Move arm into place.
+  kManipulate, // Grab/release rod.
+  kRemoveArm, // Lift arm (or equivalent).
+  kBackup,
+} placestate;
+unsigned long place_action_end = 0;
 
 enum Direction {
   // CCW order is important.
@@ -94,9 +115,11 @@ void setup() {
                         linverted, rinverted);
   lcounter = new LineCounter(lline); // Unused.
   rcounter = new LineCounter(rline);
-  armpid = new ArmPID(armmotor, armpot, 0.0, 0.0, 0.0);
+  arm = new ArmPID(armmotor, armpot, 0.25, 0.002, 2.0);
   lmotor = lf->left();
   rmotor = lf->right();
+  wrist.attach(wristservo);
+  gripper.attach(gripservo, 500, 2600 /*Need full reach of servo*/);
   state = kLine;
   // Pointing straight towards near (Down) reactor about to pull up tube.
   rodstate = kGetReactor;
@@ -105,6 +128,11 @@ void setup() {
   goal = 0;
   pinMode(vtrigger, INPUT_PULLUP);
   Serial.println("Done constructing.");
+
+  // Set up servos as open, ready to grip from reactor.
+  wrist.write(vertwrist);
+  gripper.write(opengrip);
+  arm->set_setpoint(armup);
 
   pinMode(button, INPUT_PULLUP);
   while (digitalRead(button));
@@ -126,12 +154,20 @@ void loop() {
       Direction goaldir;
       switch (rodstate) {
         case kGetReactor:
+          wrist.write(vertwrist);
+          gripper.write(opengrip);
+          arm->set_setpoint(armup);
+
           if (goal == -1) {
             goal = zerodone ? 1 : 0;
           }
           if (!digitalRead(vtrigger)) {
             state = kReactorPull;
+            placestate = kStartArm;
             writeMotors(0, 0);
+            arm->set_setpoint(armdown);
+            wrist.write(vertwrist);
+            gripper.write(opengrip);
             updatelf = false;
             goal = -1; // Store will need to decide where to put this.
             break;
@@ -154,12 +190,15 @@ void loop() {
           }
           break; // case kGetReactor
         case kStore:
+          arm->set_setpoint(armup);
+          wrist.write(flatwrist);
+          gripper.write(closegrip);
           // If goal is undecided or no longer feasible.
           if (goal == -1 || bt->storage(goal)) {
             if (!bt->storage(0)) goal = 0;
-            if (!bt->storage(1)) goal = 1;
-            if (!bt->storage(2)) goal = 2;
-            if (!bt->storage(3)) goal = 3;
+            else if (!bt->storage(1)) goal = 1;
+            else if (!bt->storage(2)) goal = 2;
+            else if (!bt->storage(3)) goal = 3;
           }
           if (goal == -1) {
             // Something is wrong; No storage is available.
@@ -201,20 +240,24 @@ void loop() {
             updatelf = false;
             goal = -1;
             state = kStorageDrop;
+            placestate = kStartArm;
             break;
           }
 
           // Otherwise, we just continue line following...
           break; // case kStore
         case kGetSupply:
+          arm->set_setpoint(armup);
+          wrist.write(flatwrist);
+          gripper.write(opengrip);
           // Basically same logic as kStore, but with different variables.
           // Refactor to reuse code.
           // If goal is undecided or no longer feasible.
           if (goal == -1 || !bt->supply(goal)) {
             if (bt->supply(0)) goal = 0;
-            if (bt->supply(1)) goal = 1;
-            if (bt->supply(2)) goal = 2;
-            if (bt->supply(3)) goal = 3;
+            else if (bt->supply(1)) goal = 1;
+            else if (bt->supply(2)) goal = 2;
+            else if (bt->supply(3)) goal = 3;
           }
           if (goal == -1) {
             // Something is wrong; No storage is available.
@@ -278,12 +321,17 @@ void loop() {
             updatelf = false;
             goal = -1;
             state = kSupplyPull;
+            placestate = kStartArm;
             break;
           }
           break; // case kGetSupply
         case kSetReactor:
+          arm->set_setpoint(armup);
+          wrist.write(vertwrist);
+          gripper.write(closegrip);
           if (!digitalRead(vtrigger)) {
             state = kReactorDrop;
+            placestate = kStartArm;
             writeMotors(0, 0);
             updatelf = false;
             goal = -1; // Store will need to decide where to put this.
@@ -342,30 +390,217 @@ void loop() {
     case kTurn:
       if (TurnUpdate()) state = kLine;
       break; // case kTurn
-    default:
-      Serial.println("Backing Up.");
-      writeMotors(-20, -20);
-      //XXX: Remove this delay. We shouldn't have time delays in here.
-      delay(700);
-      writeMotors(0, 0);
-      if (state == kReactorPull) {
-        rodstate = kStore;
-        bt->set_radlevel(Bluetooth::kSpent);
+
+    // These cases will use goal to indicate whether a particular stage of the
+    // action has started/finished.
+    case kReactorPull:
+      // Position arm, grab, pull up, back up.
+      switch (placestate) {
+        case kStartArm:
+          if (goal == -1) {
+            place_action_end = millis() + 5000;
+            goal = 0;
+            arm->set_setpoint(armdown);
+            wrist.write(vertwrist);
+            gripper.write(opengrip);
+          }
+          else if (millis() > place_action_end) {
+            placestate = kManipulate;
+            goal = -1;
+          }
+          break; // kStartArm
+        case kManipulate:
+          if (goal == -1) {
+            place_action_end = millis() + 1500;
+            goal = 0;
+            gripper.write(closegrip);
+          }
+          else if (millis() > place_action_end) {
+            placestate = kRemoveArm;
+            goal = -1;
+          }
+          break; // kManipulate
+        case kRemoveArm:
+          if (goal == -1) {
+            place_action_end = millis() + 3000;
+            goal = 0;
+            arm->set_setpoint(armup);
+            bt->set_radlevel(Bluetooth::kSpent);
+          }
+          else if (millis() > place_action_end) {
+            placestate = kBackup;
+            goal = -1;
+          }
+          break; // kRemoveArm
+        case kBackup:
+          if (goal == -1) {
+            place_action_end = millis() + 700;
+            goal = 0;
+            writeMotors(-20, -20);
+          }
+          else if (millis() > place_action_end) {
+            writeMotors(0, 0);
+            placestate = kStartArm;
+            rodstate = kStore;
+            state = kLine;
+            goal = -1;
+          }
+          break; // kBackup
       }
-      if (state == kReactorDrop) {
-        rodstate = kGetReactor;
-        bt->set_radlevel(Bluetooth::kNone);
+      break; // case kReactorPull
+    case kReactorDrop:
+      // Position arm, grab, pull up, back up.
+      switch (placestate) {
+        case kStartArm:
+          if (goal == -1) {
+            place_action_end = millis() + 3000;
+            goal = 0;
+            arm->set_setpoint(armdown);
+            wrist.write(vertwrist);
+            gripper.write(closegrip);
+          }
+          else if (millis() > place_action_end) {
+            placestate = kManipulate;
+            goal = -1;
+          }
+          break; // kStartArm
+        case kManipulate:
+          if (goal == -1) {
+            place_action_end = millis() + 500;
+            goal = 0;
+            gripper.write(opengrip);
+          }
+          else if (millis() > place_action_end) {
+            bt->set_radlevel(Bluetooth::kNone);
+            placestate = kRemoveArm;
+            goal = -1;
+          }
+          break; // kManipulate
+        case kRemoveArm:
+          if (goal == -1) {
+            place_action_end = millis() + 3000;
+            goal = 0;
+            arm->set_setpoint(armup);
+          }
+          else if (millis() > place_action_end) {
+            placestate = kBackup;
+            goal = -1;
+          }
+          break; // kRemoveArm
+        case kBackup:
+          if (goal == -1) {
+            place_action_end = millis() + 700;
+            goal = 0;
+            writeMotors(-20, -20);
+          }
+          else if (millis() > place_action_end) {
+            writeMotors(0, 0);
+            placestate = kStartArm;
+            rodstate = kGetReactor;
+            state = kLine;
+            goal = -1;
+          }
+          break; // kBackup
       }
-      if (state == kSupplyPull) {
-        rodstate = kSetReactor;
-        bt->set_radlevel(Bluetooth::kNew);
+      break; // case kReactorDrop
+    case kSupplyPull:
+      // Position arm, grab, pull up, back up.
+      switch (placestate) {
+        case kStartArm:
+          if (goal == -1) {
+            place_action_end = millis() + 3000;
+            goal = 0;
+            arm->set_setpoint(armup);
+            wrist.write(flatwrist);
+            gripper.write(opengrip);
+          }
+          else if (millis() > place_action_end) {
+            placestate = kManipulate;
+            goal = -1;
+          }
+          break; // kStartArm
+        case kManipulate:
+          if (goal == -1) {
+            place_action_end = millis() + 500;
+            goal = 0;
+            gripper.write(closegrip);
+          }
+          else if (millis() > place_action_end) {
+            bt->set_radlevel(Bluetooth::kNew);
+            placestate = kRemoveArm;
+            goal = -1;
+          }
+          break; // kManipulate
+        case kRemoveArm:
+          // Fall through.
+          placestate = kBackup;
+          goal = -1;
+          break; // kRemoveArm
+        case kBackup:
+          if (goal == -1) {
+            place_action_end = millis() + 700;
+            goal = 0;
+            writeMotors(-20, -20);
+          }
+          else if (millis() > place_action_end) {
+            writeMotors(0, 0);
+            placestate = kStartArm;
+            rodstate = kSetReactor;
+            state = kLine;
+            goal = -1;
+          }
+          break; // kBackup
       }
-      if (state == kStorageDrop) {
-        rodstate = kGetSupply;
-        bt->set_radlevel(Bluetooth::kNone);
+      break; // case kSupplyPull
+    case kStorageDrop:
+      // Position arm, grab, pull up, back up.
+      switch (placestate) {
+        case kStartArm:
+          if (goal == -1) {
+            place_action_end = millis() + 3000;
+            goal = 0;
+            arm->set_setpoint(armup);
+            wrist.write(flatwrist);
+            gripper.write(closegrip);
+          }
+          else if (millis() > place_action_end) {
+            placestate = kManipulate;
+            goal = -1;
+          }
+          break; // kStartArm
+        case kManipulate:
+          if (goal == -1) {
+            place_action_end = millis() + 500;
+            goal = 0;
+            gripper.write(opengrip);
+          }
+          else if (millis() > place_action_end) {
+            bt->set_radlevel(Bluetooth::kNone);
+            placestate = kRemoveArm;
+            goal = -1;
+          }
+          break; // kManipulate
+        case kRemoveArm:
+          // Fall through.
+          placestate = kBackup;
+          goal = -1;
+          break; // kRemoveArm
+        case kBackup:
+          if (goal == -1) {
+            place_action_end = millis() + 700;
+            goal = 0;
+            writeMotors(-20, -20);
+          }
+          else if (millis() > place_action_end) {
+            writeMotors(0, 0);
+            placestate = kStartArm;
+            rodstate = kGetSupply;
+            state = kLine;
+            goal = -1;
+          }
+          break; // kBackup
       }
-      state = kLine;
-      break;
+      break; // case kStorageDrop
   } // switch state.
 
   // Update appropriate loops.
@@ -399,7 +634,7 @@ void loop() {
       rcounter->Update();
     }
   }
-  armpid->Update();
+  arm->Update();
 
   if (millis() > next_update) {
     Serial.print("State:\t");
@@ -441,11 +676,13 @@ void Turn(unsigned long time, bool left) {
   Serial.println(millis());
 }
 bool TurnUpdate() {
+  int linepos = lf->Read();
+ // /*
   if (millis() > turn_end) {
     Serial.println("Ending Turn!");
     return true;
   }
-  else if (millis() > turn_end - turndelay) {
+  else/**/ if ((millis() > turn_end - turndelay)) {// && (linepos > 1000 && linepos < 6000)) {
     writeMotors(0, 0);
   }
   else if (millis() > start_turn) {
