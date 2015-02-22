@@ -31,19 +31,19 @@ const uint8_t armmotor = 9, armpot = 2;
 
 const unsigned long turn90 = 1100;
 const unsigned long turn180 = ((float)turn90 * 1.9);
-const unsigned long turndelay = 300;
+const unsigned long turndelay = 100;
 
-const int closegrip = 180;
+const int closegrip = 190;
 const int opengrip = 90;
 const uint8_t gripservo = 7;
 Servo gripper;
 
 const int flatwrist = 150;
-const int vertwrist = 50;
+const int vertwrist = 65;
 const uint8_t wristservo = 8;
 Servo wrist;
 
-const int armdown = 190;
+const int armdown = 160;
 const int armup = 275;
 
 volatile bool go = false;
@@ -115,7 +115,7 @@ void setup() {
                         linverted, rinverted);
   lcounter = new LineCounter(lline); // Unused.
   rcounter = new LineCounter(rline);
-  arm = new ArmPID(armmotor, armpot, 0.25, 0.002, 2.0);
+  arm = new ArmPID(armmotor, armpot, 0.25, 0.0015, 5.0);
   lmotor = lf->left();
   rmotor = lf->right();
   wrist.attach(wristservo);
@@ -152,6 +152,7 @@ void loop() {
       // Make decisions based on whether we have a rod.
       int dirdiff;
       Direction goaldir;
+      bool just_starting;
       switch (rodstate) {
         case kGetReactor:
           wrist.write(vertwrist);
@@ -195,11 +196,13 @@ void loop() {
           gripper.write(closegrip);
           // If goal is undecided or no longer feasible.
           if (goal == -1 || bt->storage(goal)) {
+            just_starting = true;
             if (!bt->storage(0)) goal = 0;
             else if (!bt->storage(1)) goal = 1;
             else if (!bt->storage(2)) goal = 2;
             else if (!bt->storage(3)) goal = 3;
           }
+          else just_starting = false;
           if (goal == -1) {
             // Something is wrong; No storage is available.
             updatelf = false;
@@ -211,9 +214,7 @@ void loop() {
           // Determine what direction we should be facing.
           if (locstate == kCenter) {
             if ((dirstate == kUp && nearline == (goal + 1)) ||
-                (dirstate == kDown && nearline == goal)) {
-              // XXX: Corner case: pointing towards reactor while at reactor,
-              // before turning around.
+                (dirstate == kDown && nearline == goal) && !just_starting) {
               goaldir = kLeft;
               locstate = kStorageLines;
               nearline = goal;
@@ -381,8 +382,6 @@ void loop() {
             updatelf = false;
             dirstate = up ? kUp : kDown;
           }
-
-
 
           break; // case kSetReactor
       }  // switch rodstate
@@ -668,22 +667,23 @@ unsigned long turn_end = 0;
 unsigned long start_turn = 0;
 bool turning_left = false;
 void Turn(unsigned long time, bool left) {
-  writeMotors(0, 0);
+  writeMotors(-20, -20);
   turning_left = left;
-  turn_end = millis() + time + 2 * turndelay /* Time it takes to stop */;
+  turn_end = millis() + time - 400 + 2 * turndelay /* Time it takes to stop */;
   start_turn = millis() + turndelay;
   Serial.println(turn_end - 400);
   Serial.println(millis());
 }
 bool TurnUpdate() {
   int linepos = lf->Read();
- // /*
+  /*
   if (millis() > turn_end) {
     Serial.println("Ending Turn!");
     return true;
   }
-  else/**/ if ((millis() > turn_end - turndelay)) {// && (linepos > 1000 && linepos < 6000)) {
+  else */ if ((millis() > turn_end - turndelay) && (linepos > 2500 && linepos < 4500)) {
     writeMotors(0, 0);
+    return true;
   }
   else if (millis() > start_turn) {
     if (turning_left) writeMotors(-20, 15);

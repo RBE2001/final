@@ -41,7 +41,10 @@ class ArmPID : public Loop {
   }
 
   // Set the desired setpoint.
-  void set_setpoint(int setpoint) { setpoint_ = setpoint; }
+  void set_setpoint(int setpoint) {
+    sum_ = 0;
+    setpoint_ = setpoint;
+  }
 
   // Used by the Loop class; called once per cycle.
   void Run() { motor_.write(OutToRaw(Calc())); }
@@ -54,7 +57,7 @@ class ArmPID : public Loop {
 
   // Convert between the output of the PID loop (which centers on zero and may
   // be inverted) to useful motor values (typically 0 - 180).
-  uint8_t OutToRaw(int out) { return out + 90; }
+  uint8_t OutToRaw(int out) { return out + 90 + 10; }
 
   // Current setpoint to use when calculating error.
   int setpoint_;

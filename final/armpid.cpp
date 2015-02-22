@@ -6,7 +6,7 @@
 int ArmPID::Calc() {
   // Calculate Error. Not the analogRead blocks until ADC finishes reading.
   int error = setpoint_ - analogRead(pot_);
-  sum_ += (error > 20) ? 20 : error;
+  sum_ += (abs(error) > 20) ? 0 : error;
   // Perform actual PID calculation.
   int retval = p_ * error + i_ * sum_ + d_ * (error - prev_error_);
   int max = 20;
