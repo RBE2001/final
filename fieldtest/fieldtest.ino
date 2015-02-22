@@ -30,7 +30,7 @@
 Bluetooth *bt;
 
 // go indicates that bluetooth has connected and packets can now be sent.
-volatile bool go = false;
+volatile bool go = true;
 // rad level refers to the radiation level to be sent out (none=0, low=1, or
 // high=2). After the go button has been pushed initially, this will cycle
 // between the three options when you press the goSW button.
@@ -94,6 +94,7 @@ void extint_1ISR(void) {
 void loop() {
   // Don't send mess with bluetooth until go button has been pressed once.
   if (go) bt->Update();
+  Serial.println(bt->raw_supply());
   digitalWrite(splyLED1, bt->supply(0));
   digitalWrite(splyLED2, bt->supply(1));
   digitalWrite(splyLED4, bt->supply(2));

@@ -64,6 +64,9 @@ class LineFollower : public Loop {
   Servo *left() { return left_; }
   Servo *right() { return right_; }
 
+  // Reads the current position of the sensor over the line.
+  int Read() { return qtrrc.readLine(sensor_buffer); }
+
  private:
   // Performs actual PID calculation.
   int8_t Calc();
@@ -71,9 +74,6 @@ class LineFollower : public Loop {
   // Uses the output from the Calc function to determine motor speeds and write
   // them.
   void Write(int8_t pidout);
-
-  // Reads the current position of the sensor over the line.
-  int Read() { return qtrrc.readLine(sensor_buffer); }
 
   unsigned sensor_buffer[32];
 

@@ -29,7 +29,9 @@ LineCounter *lcounter /*Unused*/, *rcounter;
 ArmPID *armpid;
 const uint8_t armmotor = 100, armpot = 100;
 
-const unsigned long turn90 = 1000;
+const unsigned long turn90 = 1100;
+const unsigned long turn180 = ((float)turn90 * 1.9);
+const unsigned long turndelay = 300;
 
 volatile bool go = false;
 volatile uint8_t radlevel = 0;
@@ -110,7 +112,7 @@ void setup() {
   lf->Calibrate();
   Serial.println("Done Calibrating.");
 
-  lf->set_pid(1e-2, 0.0, 0.0);
+  lf->set_pid(8e-3, 0.0, 5e-2);
 }
 
 // For serial debugging;
@@ -124,6 +126,9 @@ void loop() {
       Direction goaldir;
       switch (rodstate) {
         case kGetReactor:
+          if (goal == -1) {
+            goal = zerodone ? 1 : 0;
+          }
           if (!digitalRead(vtrigger)) {
             state = kReactorPull;
             writeMotors(0, 0);
@@ -133,7 +138,7 @@ void loop() {
           }
           if ((dirstate == kUp && goal == 0) ||
               (dirstate == kDown && goal == 1)) {  // Need to turn around.
-            Turn(turn90 * 2, true);
+            Turn(turn180, true);
             state = kTurn;
             updatelf = false;
             dirstate = (Direction) (2 - goal * 2);
@@ -150,14 +155,11 @@ void loop() {
           break; // case kGetReactor
         case kStore:
           // If goal is undecided or no longer feasible.
-          if (goal == -1 || !bt->storage(goal)) {
-            goal = 1;
-            /*
-            if (bt->storage(0)) goal = 0;
-            if (bt->storage(1)) goal = 1;
-            if (bt->storage(2)) goal = 2;
-            if (bt->storage(3)) goal = 3;
-            */
+          if (goal == -1 || bt->storage(goal)) {
+            if (!bt->storage(0)) goal = 0;
+            if (!bt->storage(1)) goal = 1;
+            if (!bt->storage(2)) goal = 2;
+            if (!bt->storage(3)) goal = 3;
           }
           if (goal == -1) {
             // Something is wrong; No storage is available.
@@ -169,8 +171,10 @@ void loop() {
           // Make sure that we are pointing the right direction.
           // Determine what direction we should be facing.
           if (locstate == kCenter) {
-            if ((dirstate == kUp && nearline > goal) ||
+            if ((dirstate == kUp && nearline == (goal + 1)) ||
                 (dirstate == kDown && nearline == goal)) {
+              // XXX: Corner case: pointing towards reactor while at reactor,
+              // before turning around.
               goaldir = kLeft;
               locstate = kStorageLines;
               nearline = goal;
@@ -182,7 +186,9 @@ void loop() {
 
           dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
           if (dirdiff != 0) {
-            Turn(abs(dirdiff) * turn90, (dirdiff > 0));
+            int turntime = abs(dirdiff) == 2 ? turn180 : turn90;
+            bool leftturn = (dirdiff > 0) ^ (abs(dirdiff) == 3);
+            Turn(turntime, leftturn);
             state = kTurn;
             updatelf = false;
             dirstate = goaldir;
@@ -205,13 +211,10 @@ void loop() {
           // Refactor to reuse code.
           // If goal is undecided or no longer feasible.
           if (goal == -1 || !bt->supply(goal)) {
-            goal = 2;
-            /*
             if (bt->supply(0)) goal = 0;
             if (bt->supply(1)) goal = 1;
             if (bt->supply(2)) goal = 2;
             if (bt->supply(3)) goal = 3;
-            */
           }
           if (goal == -1) {
             // Something is wrong; No storage is available.
@@ -226,7 +229,7 @@ void loop() {
           // center and need to go up/down, or on the other side and need to get
           // to the center.
           if (locstate == kCenter) {
-            if ((dirstate == kUp && nearline > goal) ||
+            if ((dirstate == kUp && nearline == (goal + 1)) ||
                 (dirstate == kDown && nearline == goal)) {
               goaldir = kRight;
               locstate = kSupplyLines;
@@ -241,7 +244,9 @@ void loop() {
 
           dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
           if (dirdiff != 0) {
-            Turn(abs(dirdiff) * turn90, (dirdiff > 0));
+            int turntime = abs(dirdiff) == 2 ? turn180 : turn90;
+            bool leftturn = (dirdiff > 0) ^ (abs(dirdiff) == 3);
+            Turn(turntime, leftturn);
             state = kTurn;
             updatelf = false;
             dirstate = goaldir;
@@ -300,7 +305,9 @@ void loop() {
 
           dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
           if (dirdiff != 0) {
-            Turn(abs(dirdiff) * turn90, (dirdiff > 0));
+            int turntime = abs(dirdiff) == 2 ? turn180 : turn90;
+            bool leftturn = (dirdiff > 0) ^ (abs(dirdiff) == 3);
+            Turn(turntime, leftturn);
             state = kTurn;
             updatelf = false;
             dirstate = goaldir;
@@ -339,23 +346,35 @@ void loop() {
       Serial.println("Backing Up.");
       writeMotors(-20, -20);
       //XXX: Remove this delay. We shouldn't have time delays in here.
-      delay(200);
+      delay(700);
       writeMotors(0, 0);
-      if (state == kReactorPull) rodstate = kStore;
-      if (state == kReactorDrop) rodstate = kGetReactor;
-      if (state == kSupplyPull) rodstate = kSetReactor;
-      if (state == kStorageDrop) rodstate = kGetSupply;
+      if (state == kReactorPull) {
+        rodstate = kStore;
+        bt->set_radlevel(Bluetooth::kSpent);
+      }
+      if (state == kReactorDrop) {
+        rodstate = kGetReactor;
+        bt->set_radlevel(Bluetooth::kNone);
+      }
+      if (state == kSupplyPull) {
+        rodstate = kSetReactor;
+        bt->set_radlevel(Bluetooth::kNew);
+      }
+      if (state == kStorageDrop) {
+        rodstate = kGetSupply;
+        bt->set_radlevel(Bluetooth::kNone);
+      }
       state = kLine;
       break;
   } // switch state.
 
   // Update appropriate loops.
   bt->Update();
-  if (false) {//bt->stopped()) {
+  if (bt->stopped()) {
     updatelf == false;
     if (state != kTurn) writeMotors(0, 0);
   }
-  //if (updatelf) Serial.println("Line Following."); //lf->Update();
+  if (updatelf) lf->Update();
   // We only want to update the counter when we are pure line following.
   // When following the center line, we want to:
   // -Decrement if dirstate == kDown and nearline > 0.
@@ -393,8 +412,10 @@ void loop() {
     Serial.print(locstate);
     Serial.print("\tGoal:\t");
     Serial.print(goal);
-    Serial.print("  \tLine:\t");
+    Serial.print("\tLine:\t");
     Serial.print(nearline);
+    Serial.print("\tStorage:\t");
+    Serial.print(bt->raw_storage());
     if (updatelf) Serial.print("\tLining");
     Serial.println();
     next_update = millis() + 250;
@@ -404,23 +425,32 @@ void loop() {
 void writeMotors(int left, int right) {
   left = linverted ? left : -left;
   right = rinverted ? right : -right;
-//  lmotor->write(90 + left);
-//  rmotor->write(90 + right);
+  lmotor->write(90 - left);
+  rmotor->write(90 - right);
 }
 
 unsigned long turn_end = 0;
+unsigned long start_turn = 0;
+bool turning_left = false;
 void Turn(unsigned long time, bool left) {
-  if (left) writeMotors(-20, 20);
-  else writeMotors(20, -20);
-  turn_end = millis() + time;
-  Serial.println(turn_end);
+  writeMotors(0, 0);
+  turning_left = left;
+  turn_end = millis() + time + 2 * turndelay /* Time it takes to stop */;
+  start_turn = millis() + turndelay;
+  Serial.println(turn_end - 400);
   Serial.println(millis());
 }
 bool TurnUpdate() {
   if (millis() > turn_end) {
     Serial.println("Ending Turn!");
-    writeMotors(0, 0);
     return true;
   }
-  else return false;
+  else if (millis() > turn_end - turndelay) {
+    writeMotors(0, 0);
+  }
+  else if (millis() > start_turn) {
+    if (turning_left) writeMotors(-20, 15);
+    else writeMotors(20, -15);
+  }
+  return false;
 }
