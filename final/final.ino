@@ -115,7 +115,7 @@ void setup() {
                         linverted, rinverted);
   lcounter = new LineCounter(lline); // Unused.
   rcounter = new LineCounter(rline);
-  arm = new ArmPID(armmotor, armpot, 0.25, 0.0015, 5.0);
+  arm = new ArmPID(armmotor, armpot, 0.25, 0.0012, 5.0);
   lmotor = lf->left();
   rmotor = lf->right();
   wrist.attach(wristservo);
@@ -140,7 +140,7 @@ void setup() {
   lf->Calibrate();
   Serial.println("Done Calibrating.");
 
-  lf->set_pid(8e-3, 0.0, 5e-2);
+  lf->set_pid(1.3e-2, 0.0, 1e-1);
 }
 
 // For serial debugging;
@@ -681,7 +681,7 @@ bool TurnUpdate() {
     Serial.println("Ending Turn!");
     return true;
   }
-  else */ if ((millis() > turn_end - turndelay) && (linepos > 2500 && linepos < 4500)) {
+  else */ if ((millis() > turn_end - turndelay) && (linepos > 2000 && linepos < 6000)) {
     writeMotors(0, 0);
     return true;
   }
