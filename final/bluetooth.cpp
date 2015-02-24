@@ -115,3 +115,33 @@ bool Bluetooth::Read() {
   }
   return false;
 }
+
+void Bluetooth::ChangeDegree() {
+  if (degreeflag_ = 180) (degreeflag_ = 0);
+  if (degreeflag_ = 0) (degreeflag_ = 180);
+
+  nextwave_ = millis() + kWaveInterval;
+}
+
+void Bluetooth::FlagNull() {
+  flagservo_.write(90);
+  waving_ = false;
+}
+
+void Bluetooth::FlagWave() {
+  nextwave_ = millis() + kWaveInterval;
+  if (waving_ = false) {
+    flagservo_.write(degreeflag_);
+    waving_ = true;
+    ChangeDegree();
+  }
+  if (waving_ = true) {
+    if (millis() >= nextwave_) {
+      flagservo_.write(degreeflag_);
+      ChangeDegree();
+    }
+    if (millis() < nextwave_) {
+      flagservo_.write(degreeflag_);
+    }
+  }
+}

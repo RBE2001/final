@@ -7,16 +7,14 @@
 #define __BLUETOOTH_H__
 #include "Arduino.h"
 #include <BluetoothClient.h>
+#include <Servo.h>
 #include <BluetoothMaster.h>
 #include <ReactorProtocol.h>
 #include "loop.h"
 #include <LiquidCrystal.h>
-#include "flagwave.h"
-
-LiquidCrystal lcd(45, 44, 43, 42, 41, 40);
 
 
-class Bluetooth : 
+class Bluetooth :
 public Loop {
 public:
   // Various enums for creating message packets.
@@ -33,20 +31,20 @@ public:
   };
 
   // Destination possibilities (will always be kBroadcast).
-  enum Dest { 
+  enum Dest {
     kBroadcast = 0x00,     };
 
   // Radiation level of the current robot. kNone results in no radiation message
   // being broadcast.
-  enum RadLevel { 
+  enum RadLevel {
     kNone = 0x00, kSpent = 0x2C, kNew = 0xFF,     };
 
   // Movement Status enum.
-  enum Movement { 
+  enum Movement {
     kStopped = 0x01, kTeleop = 0x02, kAuto = 0x03,     };
 
   // Gripper Status enum.
-  enum Gripper { 
+  enum Gripper {
     kNoRod = 0x01, kHaveRod = 0x02,     };
 
   // Operation Status enum.
@@ -72,7 +70,7 @@ public:
   // Declare a Bluetooth object with a specific robot number. Also, defines this
   // as running in a 25Hz loop.
   Bluetooth(uint8_t rnum = 8)
-: 
+:
     rnum_(rnum),
     pcol_(rnum),
     Loop(4e4 /* 40ms */),
@@ -80,7 +78,11 @@ public:
     nextrad_(0),
     nextst_(0),
     stopped_(false),
-    rad_level_(kNone) {
+    rad_level_(kNone),
+    lcd(40, 41, 42, 43, 44, 45),
+    nextwave_(0),
+    degreeflag_(180),
+    waving_(false) {
       state_.move = kStopped;
       state_.grip = kNoRod;
       state_.op = kIdle;
@@ -89,49 +91,50 @@ public:
       pinMode(15, INPUT_PULLUP);
       Serial3.begin(115200);
       lcd.begin(16, 2);              // set up the LCD
-      lcd.print("Radiation Level:"); // print rad message
+      lcd.print("Rad Level:"); // print rad message
 
+      flagservo_.attach(kFlagPin);
     }
 
   // Run function called by Loop::Update. Will send out heartbeat, radiation
   // alerts, status message, and read anything new.
   void Run();
 
-  void set_radlevel(RadLevel radlevel) { 
-    rad_level_ = radlevel; 
+  void set_radlevel(RadLevel radlevel) {
+    rad_level_ = radlevel;
     lcd.setCursor(0,1);
 
-    if(rad_level_ = kNone) {
+    if(rad_level_ == kNone) {
       lcd.print("None     ");
-      flagNull();
+      FlagNull();
     }
-    if(rad_level_ = kSpent) {
+    if(rad_level_ == kSpent) {
       lcd.print("Spent Rod");
-      flagWave();
+      FlagWave();
     }
-    if(rad_level_ = kNew)   {
+    if(rad_level_ == kNew)   {
       lcd.print("New Rod  ");
-      flagWave();
-    }    
+      FlagWave();
+    }
     else                   lcd.print("Error    ");
   }
 
-  void set_status(Status state) { 
-    state_ = state; 
+  void set_status(Status state) {
+    state_ = state;
   }
 
-  bool stopped() { 
-    return stopped_; 
+  bool stopped() {
+    return stopped_;
   }
 
   // These return the current states of the supply and storage tubes as one-byte
   // bitmasks where the 4 least significant bits each refer to the occupation
   // state of a single tube.
-  uint8_t raw_supply() { 
-    return supply_; 
+  uint8_t raw_supply() {
+    return supply_;
   }
-  uint8_t raw_storage() { 
-    return storage_; 
+  uint8_t raw_storage() {
+    return storage_;
   }
 
   // These return true if and only if the specified tube (0 - 3) is currently
@@ -145,8 +148,8 @@ public:
     return (storage_ >> tube) & 0x01;
   }
 
-  Status status() { 
-    return state_; 
+  Status status() {
+    return state_;
   }
 
 private:
@@ -183,6 +186,9 @@ private:
   ReactorProtocol pcol_;
   BluetoothMaster btmaster_;
 
+  // LCD display for displaying warnings.
+  LiquidCrystal lcd;
+
   // Current status information:
   // Current radiation alert level.
   RadLevel rad_level_;
@@ -193,6 +199,21 @@ private:
   bool stopped_;
   // Current information to be sent in next status message.
   Status state_;
+
+
+  // Stuff for waving the flag.
+  const int kFlagPin = 6;
+  unsigned long nextwave_;
+  const unsigned long kWaveInterval = 300; // millis
+  int degreeflag_;
+
+  bool waving_;
+  Servo flagservo_;
+
+  void ChangeDegree();
+  void FlagNull();
+  void FlagWave();
+
 };
 #endif  //  __BLUETOOTH_H__
 

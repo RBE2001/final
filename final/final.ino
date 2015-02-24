@@ -6,11 +6,11 @@
 #include <BluetoothClient.h>
 #include <BluetoothMaster.h>
 #include <ReactorProtocol.h>
+#include <LiquidCrystal.h>
 #include "armpid.h"
 #include "linefollower.h"
 #include "linecounter.h"
 #include "bluetooth.h"
-#include <LiquidCrystal.h>
 
 
 const uint8_t lmotorport = 10;
