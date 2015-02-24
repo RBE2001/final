@@ -10,9 +10,15 @@
 #include <BluetoothMaster.h>
 #include <ReactorProtocol.h>
 #include "loop.h"
+#include <LiquidCrystal.h>
+#include <flagwave.h>
 
-class Bluetooth : public Loop {
- public:
+LiquidCrystal lcd(45, 44, 42, 41, 40);
+
+
+class Bluetooth : 
+public Loop {
+public:
   // Various enums for creating message packets.
 
   // Type of message being sent.
@@ -27,17 +33,21 @@ class Bluetooth : public Loop {
   };
 
   // Destination possibilities (will always be kBroadcast).
-  enum Dest { kBroadcast = 0x00, };
+  enum Dest { 
+    kBroadcast = 0x00,     };
 
   // Radiation level of the current robot. kNone results in no radiation message
   // being broadcast.
-  enum RadLevel { kNone = 0x00, kSpent = 0x2C, kNew = 0xFF, };
+  enum RadLevel { 
+    kNone = 0x00, kSpent = 0x2C, kNew = 0xFF,     };
 
   // Movement Status enum.
-  enum Movement { kStopped = 0x01, kTeleop = 0x02, kAuto = 0x03, };
+  enum Movement { 
+    kStopped = 0x01, kTeleop = 0x02, kAuto = 0x03,     };
 
   // Gripper Status enum.
-  enum Gripper { kNoRod = 0x01, kHaveRod = 0x02, };
+  enum Gripper { 
+    kNoRod = 0x01, kHaveRod = 0x02,     };
 
   // Operation Status enum.
   enum Operation {
@@ -62,38 +72,67 @@ class Bluetooth : public Loop {
   // Declare a Bluetooth object with a specific robot number. Also, defines this
   // as running in a 25Hz loop.
   Bluetooth(uint8_t rnum = 8)
-      : rnum_(rnum),
-        pcol_(rnum),
-        Loop(4e4 /* 40ms */),
-        nexthb_(0),
-        nextrad_(0),
-        nextst_(0),
-        stopped_(false),
-        rad_level_(kNone) {
-    state_.move = kStopped;
-    state_.grip = kNoRod;
-    state_.op = kIdle;
-    // Initialize bluetooth.
-    pinMode(14, INPUT_PULLUP);
-    pinMode(15, INPUT_PULLUP);
-    Serial3.begin(115200);
-  }
+: 
+    rnum_(rnum),
+    pcol_(rnum),
+    Loop(4e4 /* 40ms */),
+    nexthb_(0),
+    nextrad_(0),
+    nextst_(0),
+    stopped_(false),
+    rad_level_(kNone) {
+      state_.move = kStopped;
+      state_.grip = kNoRod;
+      state_.op = kIdle;
+      // Initialize bluetooth.
+      pinMode(14, INPUT_PULLUP);
+      pinMode(15, INPUT_PULLUP);
+      Serial3.begin(115200);
+      lcd.begin(16, 2);              // set up the LCD
+      lcd.print("Radiation Level:"); // print rad message
+
+    }
 
   // Run function called by Loop::Update. Will send out heartbeat, radiation
   // alerts, status message, and read anything new.
   void Run();
 
-  void set_radlevel(RadLevel radlevel) { rad_level_ = radlevel; }
+  void set_radlevel(RadLevel radlevel) { 
+    rad_level_ = radlevel; 
+    lcd.setCursor(0,1);
 
-  void set_status(Status state) { state_ = state; }
+    if(rad_level = kNone) {
+      lcd.print("None     ");
+      flagNull();
+    }
+    if(rad_level = kSpent) {
+      lcd.print("Spent Rod");
+      flagWave();
+    }
+    if(rad_level = kNew)   {
+      lcd.print("New Rod  ");
+      flagWave();
+    }    
+    else                   lcd.print("Error    ");
+  }
 
-  bool stopped() { return stopped_; }
+  void set_status(Status state) { 
+    state_ = state; 
+  }
+
+  bool stopped() { 
+    return stopped_; 
+  }
 
   // These return the current states of the supply and storage tubes as one-byte
   // bitmasks where the 4 least significant bits each refer to the occupation
   // state of a single tube.
-  uint8_t raw_supply() { return supply_; }
-  uint8_t raw_storage() { return storage_; }
+  uint8_t raw_supply() { 
+    return supply_; 
+  }
+  uint8_t raw_storage() { 
+    return storage_; 
+  }
 
   // These return true if and only if the specified tube (0 - 3) is currently
   // occupied.
@@ -106,9 +145,11 @@ class Bluetooth : public Loop {
     return (storage_ >> tube) & 0x01;
   }
 
-  Status status() { return state_; }
+  Status status() { 
+    return state_; 
+  }
 
- private:
+private:
   // Note: All of the Send* functions increment counters (next*_) to indicate
   // when they should next be called. However, they will not prevent you from
   // calling them too early, so be sure to include some sort of if statement
@@ -154,3 +195,5 @@ class Bluetooth : public Loop {
   Status state_;
 };
 #endif  //  __BLUETOOTH_H__
+
+
