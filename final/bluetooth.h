@@ -13,7 +13,7 @@
 #include <LiquidCrystal.h>
 #include <flagwave.h>
 
-LiquidCrystal lcd(45, 44, 42, 41, 40);
+LiquidCrystal lcd(45, 44, 43, 42, 41, 40);
 
 
 class Bluetooth : 
