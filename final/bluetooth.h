@@ -11,7 +11,7 @@
 #include <ReactorProtocol.h>
 #include "loop.h"
 #include <LiquidCrystal.h>
-#include <flagwave.h>
+#include "flagwave.h"
 
 LiquidCrystal lcd(45, 44, 43, 42, 41, 40);
 
@@ -101,15 +101,15 @@ public:
     rad_level_ = radlevel; 
     lcd.setCursor(0,1);
 
-    if(rad_level = kNone) {
+    if(rad_level_ = kNone) {
       lcd.print("None     ");
       flagNull();
     }
-    if(rad_level = kSpent) {
+    if(rad_level_ = kSpent) {
       lcd.print("Spent Rod");
       flagWave();
     }
-    if(rad_level = kNew)   {
+    if(rad_level_ = kNew)   {
       lcd.print("New Rod  ");
       flagWave();
     }    

@@ -10,6 +10,8 @@
 #include "linefollower.h"
 #include "linecounter.h"
 #include "bluetooth.h"
+#include <LiquidCrystal.h>
+
 
 const uint8_t lmotorport = 10;
 const uint8_t rmotorport = 11;
