@@ -22,7 +22,7 @@ const uint8_t team = 8;
 const uint8_t button = 3;
 const uint8_t vtrigger = 22;
 const unsigned char num_sensors = 8;
-unsigned char linepins[num_sensors] = {46, 44, 42, 40, 38, 36, 34, 32};
+unsigned char linepins[num_sensors] = {52, 53, 51, 49, 47, 27, 25, 23};
 const uint8_t lline = 0, rline = 1;
 Bluetooth *bt;
 LineFollower *lf;

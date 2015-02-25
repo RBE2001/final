@@ -22,6 +22,8 @@ void Bluetooth::Run() {
   if ((millis() > nextst_))
     SendStatus(state_);
 
+  if (rad_level_ != kNone) FlagWave();
+
   // Read any new messages--Returns true if there are any new message, false
   // otherwise.
   Read();

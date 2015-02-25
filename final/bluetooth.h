@@ -104,19 +104,15 @@ public:
     rad_level_ = radlevel;
     lcd.setCursor(0,1);
 
-    if(rad_level_ == kNone) {
+    if (rad_level_ == kNone) {
       lcd.print("None     ");
       FlagNull();
-    }
-    if(rad_level_ == kSpent) {
+    } else if (rad_level_ == kSpent) {
       lcd.print("Spent Rod");
-      FlagWave();
-    }
-    if(rad_level_ == kNew)   {
+    } else if (rad_level_ == kNew) {
       lcd.print("New Rod  ");
-      FlagWave();
-    }
-    else                   lcd.print("Error    ");
+    } else
+      lcd.print("Error    ");
   }
 
   void set_status(Status state) {
