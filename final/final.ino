@@ -630,7 +630,7 @@ void loop() {
   }
 
   lf->enable_outputs(updatelf);
-  if (updatelf) lf->Update();
+  lf->Update();
   // We only want to update the counter when we are pure line following.
   // When following the center line, we want to:
   // -Decrement if dirstate == kDown and nearline > 0.
