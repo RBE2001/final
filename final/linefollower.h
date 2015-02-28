@@ -32,10 +32,12 @@ class LineFollower : public Loop {
         setpoint_(3500),
         num_sensors_(num_sensors),
         Loop(50000UL /* 20Hz */),
-        motorspeed_(110),
+        motorspeed_(107),
         maxspeed_(130),
         linv_(linverted),
-        rinv_(rinverted) {
+        rinv_(rinverted),
+        backwards_(false),
+        enable_outputs_(true) {
     left_ = new Servo;
     right_ = new Servo;
     left_->attach(left);
@@ -67,6 +69,10 @@ class LineFollower : public Loop {
   // Reads the current position of the sensor over the line.
   int Read() { return qtrrc.readLine(sensor_buffer); }
 
+  void reverse(bool backwards) { backwards_ = backwards; }
+
+  void enable_outputs(bool enable) { enable_outputs_ = enable; }
+
  private:
   // Performs actual PID calculation.
   int8_t Calc();
@@ -96,5 +102,7 @@ class LineFollower : public Loop {
   // Left and right drivetrain motors.
   Servo *left_, *right_;
   bool linv_, rinv_;
+  bool backwards_;
+  bool enable_outputs_;
 };
 #endif  // __LINEFOLLOWER_H__

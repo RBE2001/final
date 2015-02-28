@@ -48,11 +48,19 @@ void LineFollower::Write(int8_t pidout) {
   // Calculate speeds for left and right and actually perform the write.
   uint8_t left = motorspeed_ + pidout;
   uint8_t right = motorspeed_ - pidout;
-  if (linv_) left = 180 - left;
-  if (rinv_) right = 180 - right;
+  // Exclusive Or.
+  if (linv_ != backwards_) left = 180 - left;
+  if (rinv_ != backwards_) right = 180 - right;
+  if (backwards_)  {
+    int tmp = left;
+    left = 180 - right;
+    right = 180 - tmp;
+  }
   //Serial.print(left);
   //Serial.print("\t");
   //Serial.println(right);
-  left_->write(left);
-  right_->write(right);
+  if (enable_outputs_) {
+    left_->write(left);
+    right_->write(right);
+  }
 }
