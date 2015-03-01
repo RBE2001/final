@@ -33,7 +33,7 @@ class LineFollower : public Loop {
         num_sensors_(num_sensors),
         Loop(50000UL /* 20Hz */),
         motorspeed_(105),
-        maxspeed_(130),
+        maxspeed_(120),
         linv_(linverted),
         rinv_(rinverted),
         backwards_(false),

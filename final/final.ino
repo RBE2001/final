@@ -1,6 +1,3 @@
-// Problems to figure out:
-// --Where we might get false positives from line counters.
-// --Where we end up after turning back onto center line.
 #include <Servo.h>
 #include <QTRSensors.h>
 #include <BluetoothClient.h>
@@ -38,8 +35,8 @@ const unsigned long turn180 = 1400;
 const unsigned long turndelay = 30; // Amount to backup before turning.
 
 const unsigned long reactorbackup = 800;
-const unsigned long tubebackup = 1500;
-const unsigned long armreaction = 2000;
+const unsigned long tubebackup = 1000;
+const unsigned long armreaction = 1500;
 
 const int closegrip = 180;
 const int opengrip = 90;
@@ -52,7 +49,7 @@ const uint8_t wristservo = 8;
 Servo wrist;
 
 const int armdown = 140;
-const int armup = 250;
+const int armup = 255;
 
 volatile bool go = false;
 volatile uint8_t radlevel = 0;
@@ -147,8 +144,16 @@ void setup() {
   Serial.println("Calibrating.");
   lf->Calibrate();
   Serial.println("Done Calibrating.");
+  // Delay until we want to start.
+  while (digitalRead(button)) bt->Update();
+  // Delay so that we have time to press button.
+  for (int i = 0; i < 5; i++) {
+    delay(200);
+    bt->Update();
+  }
 
-  lf->set_pid(9e-3, 0.0, 1e-1);
+
+  lf->set_pid(9e-3, 0.0, 1.1e-1);
   lf->set_back_pid(5e-3, 0.0, 0.1);
 }
 
@@ -321,18 +326,31 @@ void loop() {
               state = kTurn;
               updatelf = false;
               dirstate = up ? kUp : kDown;
+              // Update nearline correctly.
+              if (dirstate == kUp) nearline += 1;
             }
             break;
           }
 
           // If we are on the lines and our trigger is hit, then we have arrived!
-          if (locstate != kCenter && !digitalRead(vtrigger)) {
+          if (locstate != kCenter && !digitalRead(vtrigger) && goal != -2) {
+            updatelf = false;
+            goal = -2; // backup a short bit before grabbing the rod..
+            place_action_end = millis() + 50;
+            writeMotors(-12, -12);
+            break;
+          }
+          else if (goal == -2 && millis() > place_action_end) {
             writeMotors(0, 0);
             updatelf = false;
             goal = -1;
             state = kSupplyPull;
             placestate = kStartArm;
             break;
+          }
+          else if (goal == -2) {
+            updatelf = false;
+            writeMotors(-12, -12);
           }
           break; // case kGetSupply
         case kSetReactor:
@@ -704,9 +722,9 @@ bool TurnUpdate() {
   }
   else if ((millis() > stop_turn - turndelay) && (online || turned)) {
     // Reverse motors abruptly.
-    if (!turning_left) writeMotors(-12, 12);
-    else writeMotors(12, -12);
-    if (!turned) end_turn = millis() + 25;
+    //if (!turning_left) writeMotors(-12, 12);
+    //else writeMotors(12, -12);
+    if (!turned) end_turn = millis();// + 25;
     turned = true;
   }
   else if (millis() > start_turn && !turned) {
