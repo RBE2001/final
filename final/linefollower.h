@@ -32,7 +32,7 @@ class LineFollower : public Loop {
         setpoint_(3500),
         num_sensors_(num_sensors),
         Loop(50000UL /* 20Hz */),
-        motorspeed_(107),
+        motorspeed_(105),
         maxspeed_(130),
         linv_(linverted),
         rinv_(rinverted),
@@ -55,6 +55,12 @@ class LineFollower : public Loop {
     p_ = p;
     i_ = i;
     d_ = d;
+  }
+
+  void set_back_pid(float p, float i, float d) {
+    bp_ = p;
+    bi_ = i;
+    bd_ = d;
   }
 
   void Run() { Write(Calc()); }
@@ -93,6 +99,7 @@ class LineFollower : public Loop {
   int prev_error_;
   long sum_;
   float p_, i_, d_;
+  float bp_, bi_, bd_; // Backwards numbers.
 
   // Number of individual sensors on array.
   uint8_t num_sensors_;

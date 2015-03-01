@@ -37,8 +37,9 @@ const unsigned long turn90 = 700;
 const unsigned long turn180 = 1400;
 const unsigned long turndelay = 30; // Amount to backup before turning.
 
-const unsigned long reactorbackup = 1100;
-const unsigned long tubebackup = 1400;
+const unsigned long reactorbackup = 800;
+const unsigned long tubebackup = 1500;
+const unsigned long armreaction = 2000;
 
 const int closegrip = 180;
 const int opengrip = 90;
@@ -147,7 +148,8 @@ void setup() {
   lf->Calibrate();
   Serial.println("Done Calibrating.");
 
-  lf->set_pid(1.3e-2, 0.0, 1e-1);
+  lf->set_pid(9e-3, 0.0, 1e-1);
+  lf->set_back_pid(5e-3, 0.0, 0.1);
 }
 
 // For serial debugging;
@@ -405,7 +407,7 @@ void loop() {
         case kStartArm:
           if (goal == -1) {
             updatelf = false;
-            place_action_end = millis() + 5000;
+            place_action_end = millis() + 2000;
             goal = 0;
             arm->set_setpoint(armdown);
             wrist.write(vertwrist);
@@ -429,7 +431,7 @@ void loop() {
           break; // kManipulate
         case kRemoveArm:
           if (goal == -1) {
-            place_action_end = millis() + 2000;
+            place_action_end = millis() + armreaction;
             goal = 0;
             arm->set_setpoint(armup);
             bt->set_radlevel(Bluetooth::kSpent);
@@ -440,15 +442,13 @@ void loop() {
           }
           break; // kRemoveArm
         case kBackup:
-          updatelf = true;
+          updatelf = false;
           if (goal == -1) {
             place_action_end = millis() + reactorbackup;
             goal = 0;
-            lf->reverse(true);
+            writeMotors(-20, -20);
           }
           else if (millis() > place_action_end) {
-            lf->reverse(false);
-            updatelf = false;
             writeMotors(0, 0);
             placestate = kStartArm;
             rodstate = kStore;
@@ -463,7 +463,7 @@ void loop() {
       switch (placestate) {
         case kStartArm:
           if (goal == -1) {
-            place_action_end = millis() + 2000;
+            place_action_end = millis() + armreaction;
             goal = 0;
             arm->set_setpoint(armdown);
             wrist.write(vertwrist);
@@ -488,7 +488,7 @@ void loop() {
           break; // kManipulate
         case kRemoveArm:
           if (goal == -1) {
-            place_action_end = millis() + 2000;
+            place_action_end = millis() + armreaction;
             goal = 0;
             arm->set_setpoint(armup);
           }
@@ -498,15 +498,13 @@ void loop() {
           }
           break; // kRemoveArm
         case kBackup:
-          updatelf = true;
+          updatelf = false;
           if (goal == -1) {
             place_action_end = millis() + reactorbackup;
             goal = 0;
-            lf->reverse(true);
+            writeMotors(-20, -20);
           }
           else if (millis() > place_action_end) {
-            lf->reverse(false);
-            updatelf = false;
             writeMotors(0, 0);
             placestate = kStartArm;
             rodstate = kGetReactor;
@@ -521,7 +519,7 @@ void loop() {
       switch (placestate) {
         case kStartArm:
           if (goal == -1) {
-            place_action_end = millis() + 2000;
+            place_action_end = millis() + armreaction;
             goal = 0;
             arm->set_setpoint(armup);
             wrist.write(flatwrist);
@@ -550,15 +548,13 @@ void loop() {
           goal = -1;
           break; // kRemoveArm
         case kBackup:
-          updatelf = true;
+          updatelf = false;
           if (goal == -1) {
             place_action_end = millis() + tubebackup;
             goal = 0;
-            lf->reverse(true);
+            writeMotors(-20, -20);
           }
           else if (millis() > place_action_end) {
-            lf->reverse(false);
-            updatelf = false;
             writeMotors(0, 0);
             placestate = kStartArm;
             rodstate = kSetReactor;
@@ -573,7 +569,7 @@ void loop() {
       switch (placestate) {
         case kStartArm:
           if (goal == -1) {
-            place_action_end = millis() + 2000;
+            place_action_end = millis() + armreaction;
             goal = 0;
             arm->set_setpoint(armup);
             wrist.write(flatwrist);
@@ -602,15 +598,13 @@ void loop() {
           goal = -1;
           break; // kRemoveArm
         case kBackup:
-          updatelf = true;
+          updatelf = false;
           if (goal == -1) {
             place_action_end = millis() + tubebackup;
-            lf->reverse(true);
             goal = 0;
+            writeMotors(-20, -20);
           }
           else if (millis() > place_action_end) {
-            lf->reverse(false);
-            updatelf = false;
             writeMotors(0, 0);
             placestate = kStartArm;
             rodstate = kGetSupply;
@@ -702,7 +696,7 @@ void Turn(unsigned long mintime, bool left) {
 }
 bool TurnUpdate() {
   int sensval = analogRead(backline);
-  const int kCutoff = 500;
+  const int kCutoff = 400;
   bool online = sensval > kCutoff;
   if (millis() > end_turn && turned) {
     writeMotors(0, 0);

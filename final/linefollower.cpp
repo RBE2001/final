@@ -30,7 +30,10 @@ int8_t LineFollower::Calc() {
   //Serial.print(error);
   //Serial.print("\t");
   sum_ += error;
-  float retval = p_ * error + i_ * sum_ + d_ * (error - prev_error_);
+  float p = backwards_ ? bp_ : p_;
+  float i = backwards_ ? bi_ : i_;
+  float d = backwards_ ? bd_ : d_;
+  float retval = p * error + i * sum_ + d * (error - prev_error_);
   if (retval > 90) retval = 90;
   if (retval < -90) retval = -90;
   prev_error_ = error;
@@ -51,11 +54,6 @@ void LineFollower::Write(int8_t pidout) {
   // Exclusive Or.
   if (linv_ != backwards_) left = 180 - left;
   if (rinv_ != backwards_) right = 180 - right;
-  if (backwards_)  {
-    int tmp = left;
-    left = 180 - right;
-    right = 180 - tmp;
-  }
   //Serial.print(left);
   //Serial.print("\t");
   //Serial.println(right);
