@@ -37,7 +37,7 @@ const unsigned long turndelay = 30; // Amount to backup before turning.
 const unsigned long reactorbackup = 700;
 const unsigned long tubebackup = 750;
 const unsigned long armreaction = 1500;
-const unsigned long supplybackup = 210; // Time to backup before grabbing supply tube.
+const unsigned long supplybackup = 50; // Time to backup before grabbing supply tube.
 
 const int closegrip = 180;
 const int slightgrip = 180 - 30;
@@ -341,7 +341,7 @@ void loop() {
           }
 
           // If we are on the lines and our trigger is hit, then we have arrived!
-          if (locstate != kCenter && !digitalRead(vtrigger) && goal != -2) {
+          if (locstate != kCenter && (!digitalRead(vtrigger) || rcounter->count()) && goal != -2) {
             updatelf = false;
             goal = -2; // backup a short bit before grabbing the rod..
             gripper.write(slightgrip);
