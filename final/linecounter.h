@@ -40,6 +40,8 @@ class LineCounter : public Loop {
     else return;
   }
 
+  void reset_timeout() { timeout_ = millis() + kDelay; }
+
  private:
   const int kCutoff;
   const int

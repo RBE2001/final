@@ -17,9 +17,11 @@ int ArmPID::Calc() {
   if (retval > 0) retval += 12;
   else retval += 0;
   prev_error_ = error;
+  /*
   Serial.print("Error:\t");
   Serial.print(error);
   Serial.print("\tOut:\t");
   Serial.println(retval);
+  */
   return retval;
 }

@@ -34,17 +34,21 @@ const unsigned long turn90 = 700;
 const unsigned long turn180 = 1400;
 const unsigned long turndelay = 30; // Amount to backup before turning.
 
-const unsigned long reactorbackup = 800;
-const unsigned long tubebackup = 1000;
+const unsigned long reactorbackup = 700;
+const unsigned long tubebackup = 750;
 const unsigned long armreaction = 1500;
+const unsigned long supplybackup = 210; // Time to backup before grabbing supply tube.
 
 const int closegrip = 180;
+const int slightgrip = 180 - 30;
 const int opengrip = 90;
 const uint8_t gripservo = 7;
 Servo gripper;
 
 const int flatwrist = 103;
+const int tiltedwrist = flatwrist + 10;
 const int vertwrist = 13;
+const int upsidedownwrist = vertwrist + 5;
 const uint8_t wristservo = 8;
 Servo wrist;
 
@@ -104,7 +108,7 @@ uint8_t nearline = 0;
 // Reactor: 0 for down, 1 for up.
 // Supply/Storage: 0 - 3.
 // -1 Means undecided.
-volatile int goal = 0;
+volatile int goal = -1;
 
 // whether we have re-supplied reactor 0.
 bool zerodone = false;
@@ -129,8 +133,9 @@ void setup() {
   // Pointing straight towards near (Down) reactor about to pull up tube.
   rodstate = kGetReactor;
   dirstate = kDown;
+  nearline = 0;
   locstate = kCenter;
-  goal = 0;
+  goal = -1;
   pinMode(vtrigger, INPUT_PULLUP);
   Serial.println("Done constructing.");
 
@@ -174,7 +179,9 @@ void loop() {
           arm->set_setpoint(armup);
 
           if (goal == -1) {
+            Serial.print("Setting goal to: ");
             goal = zerodone ? 1 : 0;
+            Serial.println(goal);
           }
           if (!digitalRead(vtrigger)) {
             state = kReactorPull;
@@ -209,7 +216,7 @@ void loop() {
           wrist.write(flatwrist);
           gripper.write(closegrip);
           // If goal is undecided or no longer feasible.
-          if (goal == -1 || bt->storage(goal)) {
+          if (goal == -1 && (bt->storage(goal) != 0x0F)) {
             just_starting = true;
             if (!bt->storage(0)) goal = 0;
             else if (!bt->storage(1)) goal = 1;
@@ -227,8 +234,8 @@ void loop() {
           // Make sure that we are pointing the right direction.
           // Determine what direction we should be facing.
           if (locstate == kCenter) {
-            if ((dirstate == kUp && nearline == (goal + 1)) ||
-                (dirstate == kDown && nearline == goal) && !just_starting) {
+            if (((dirstate == kUp && nearline == (goal + 1)) ||
+                (dirstate == kDown && nearline == goal)) && !just_starting) {
               goaldir = kLeft;
               locstate = kStorageLines;
               nearline = goal;
@@ -241,7 +248,7 @@ void loop() {
           dirdiff = (int)goaldir - (int)dirstate; // Positive = left.
           if (dirdiff != 0) {
             int turntime = abs(dirdiff) == 2 ? turn180 : turn90;
-            bool leftturn = (dirdiff > 0) ^ (abs(dirdiff) == 3);
+            bool leftturn = (dirdiff > 0) != (abs(dirdiff) == 3);
             Turn(turntime, leftturn);
             state = kTurn;
             updatelf = false;
@@ -263,12 +270,13 @@ void loop() {
           break; // case kStore
         case kGetSupply:
           arm->set_setpoint(armup);
-          wrist.write(flatwrist);
+          wrist.write(tiltedwrist);
           gripper.write(opengrip);
           // Basically same logic as kStore, but with different variables.
           // Refactor to reuse code.
-          // If goal is undecided or no longer feasible.
-          if (goal == -1 || !bt->supply(goal)) {
+          // If goal is undecided or no longer feasible and it is not -2 (which
+          // means we are just about finished).
+          if (goal != -2 && (goal == -1 || !bt->supply(goal))) {
             if (bt->supply(0)) goal = 0;
             else if (bt->supply(1)) goal = 1;
             else if (bt->supply(2)) goal = 2;
@@ -336,7 +344,8 @@ void loop() {
           if (locstate != kCenter && !digitalRead(vtrigger) && goal != -2) {
             updatelf = false;
             goal = -2; // backup a short bit before grabbing the rod..
-            place_action_end = millis() + 50;
+            gripper.write(slightgrip);
+            place_action_end = millis() + supplybackup;
             writeMotors(-12, -12);
             break;
           }
@@ -355,7 +364,7 @@ void loop() {
           break; // case kGetSupply
         case kSetReactor:
           arm->set_setpoint(armup);
-          wrist.write(vertwrist);
+          wrist.write(upsidedownwrist);
           gripper.write(closegrip);
           if (!digitalRead(vtrigger)) {
             state = kReactorDrop;
@@ -484,7 +493,7 @@ void loop() {
             place_action_end = millis() + armreaction;
             goal = 0;
             arm->set_setpoint(armdown);
-            wrist.write(vertwrist);
+            wrist.write(upsidedownwrist);
             gripper.write(closegrip);
           }
           else if (millis() > place_action_end) {
@@ -702,8 +711,10 @@ unsigned long stop_turn = 0;
 unsigned long start_turn = 0;
 bool turning_left = false;
 bool turned = false;
+bool sawline = false; // Whether the front sensors have seen the line yet.
 
 void Turn(unsigned long mintime, bool left) {
+  sawline = false;
   turned = false;
   writeMotors(-20, -20);
   turning_left = left;
@@ -716,15 +727,25 @@ bool TurnUpdate() {
   int sensval = analogRead(backline);
   const int kCutoff = 400;
   bool online = sensval > kCutoff;
+  int frontsens = lf->Read();
+  // Don't stop turning until we have data from line following sensors.
+  if ((frontsens > 2800 && frontsens < 4200) && millis() > stop_turn) {
+    sawline = true;
+  }
   if (millis() > end_turn && turned) {
+    rcounter->reset_timeout();
     writeMotors(0, 0);
     return true;
   }
   else if ((millis() > stop_turn - turndelay) && (online || turned)) {
     // Reverse motors abruptly.
-    //if (!turning_left) writeMotors(-12, 12);
-    //else writeMotors(12, -12);
-    if (!turned) end_turn = millis();// + 25;
+    if (sawline) {
+      if (!turning_left) writeMotors(-12, 12);
+      else writeMotors(12, -12);
+    } else
+      end_turn = millis() + 120;
+    // Until both have happened, keep on pushing this back.
+    if (!sawline || !turned) end_turn = millis() + 100;
     turned = true;
   }
   else if (millis() > start_turn && !turned) {
