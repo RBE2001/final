@@ -37,7 +37,7 @@ const unsigned long turndelay = 30; // Amount to backup before turning.
 const unsigned long reactorbackup = 700;
 const unsigned long tubebackup = 750;
 const unsigned long armreaction = 1500;
-const unsigned long supplybackup = 30; // Formerly 200?; // Time to backup before grabbing supply tube.
+const unsigned long supplybackup = 150;//30; // Formerly 200?; // Time to backup before grabbing supply tube.
 const unsigned long supplyturn = 2500;
 
 const int closegrip = 180;
@@ -172,7 +172,7 @@ void loop() {
       // Make decisions based on whether we have a rod.
       int dirdiff;
       Direction goaldir;
-      bool just_starting;
+      bool just_starting, onsupplyline;
       switch (rodstate) {
         case kGetReactor:
           wrist.write(vertwrist);
@@ -342,8 +342,16 @@ void loop() {
             break;
           }
 
+          onsupplyline = locstate != kCenter && goal != -2 && place_action_end < millis();
+          if ((rcounter->count() && onsupplyline) || goal == -3) {
+            goal = -3;
+            // Slow down and go forwards.
+            updatelf = false;
+            writeMotors(0, 0);
+          }
+
           // If we are on the lines and our trigger is hit, then we have arrived!
-          if ((locstate != kCenter && (!digitalRead(vtrigger) || rcounter->count()) && goal != -2) && place_action_end < millis()) {
+          if (!digitalRead(vtrigger) && onsupplyline) {
             updatelf = false;
             goal = -2; // backup a short bit before grabbing the rod..
             gripper.write(slightgrip);
@@ -648,7 +656,7 @@ void loop() {
   // Update appropriate loops.
   bt->Update();
   if (bt->stopped()) {
-    updatelf == false;
+    updatelf = false;
     if (state != kTurn) writeMotors(0, 0);
   }
 
