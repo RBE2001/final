@@ -38,6 +38,7 @@ const unsigned long reactorbackup = 700;
 const unsigned long tubebackup = 750;
 const unsigned long armreaction = 1500;
 const unsigned long supplybackup = 30; // Formerly 200?; // Time to backup before grabbing supply tube.
+const unsigned long supplyturn = 2500;
 
 const int closegrip = 180;
 const int slightgrip = 180 - 30;
@@ -316,7 +317,7 @@ void loop() {
             state = kTurn;
             updatelf = false;
             dirstate = goaldir;
-            place_action_end = millis() + 1000;
+            place_action_end = millis() + supplyturn;
             break; // May as well quit this case statement.
           }
 
@@ -741,12 +742,12 @@ bool TurnUpdate() {
   else if ((millis() > stop_turn - turndelay) && (online || turned)) {
     // Reverse motors abruptly.
     if (sawline) {
-      if (!turning_left) writeMotors(-12, 12);
-      else writeMotors(12, -12);
+      if (!turning_left) writeMotors(-14, 14);
+      else writeMotors(14, -14);
     } else
       end_turn = millis() + 120;
     // Until both have happened, keep on pushing this back.
-    if (!sawline || !turned) end_turn = millis() + 180;
+    if (!sawline || !turned) end_turn = millis() + 250;
     turned = true;
   }
   else if (millis() > start_turn && !turned) {
