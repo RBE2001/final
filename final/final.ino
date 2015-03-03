@@ -30,14 +30,14 @@ const uint8_t armmotor = 9, armpot = 2, armbutton = 24;
 
 const uint8_t backline = 0;
 
-const unsigned long turn90 = 700;
-const unsigned long turn180 = 1400;
+const unsigned long turn90 = 600;
+const unsigned long turn180 = 1100;
 const unsigned long turndelay = 30; // Amount to backup before turning.
 
 const unsigned long reactorbackup = 700;
 const unsigned long tubebackup = 750;
 const unsigned long armreaction = 1500;
-const unsigned long supplybackup = 50; // Time to backup before grabbing supply tube.
+const unsigned long supplybackup = 30; // Formerly 200?; // Time to backup before grabbing supply tube.
 
 const int closegrip = 180;
 const int slightgrip = 180 - 30;
@@ -316,6 +316,7 @@ void loop() {
             state = kTurn;
             updatelf = false;
             dirstate = goaldir;
+            place_action_end = millis() + 1000;
             break; // May as well quit this case statement.
           }
 
@@ -341,12 +342,12 @@ void loop() {
           }
 
           // If we are on the lines and our trigger is hit, then we have arrived!
-          if (locstate != kCenter && (!digitalRead(vtrigger) || rcounter->count()) && goal != -2) {
+          if ((locstate != kCenter && (!digitalRead(vtrigger) || rcounter->count()) && goal != -2) && place_action_end < millis()) {
             updatelf = false;
             goal = -2; // backup a short bit before grabbing the rod..
             gripper.write(slightgrip);
             place_action_end = millis() + supplybackup;
-            writeMotors(-12, -12);
+            writeMotors(-11, -11);
             break;
           }
           else if (goal == -2 && millis() > place_action_end) {
@@ -745,7 +746,7 @@ bool TurnUpdate() {
     } else
       end_turn = millis() + 120;
     // Until both have happened, keep on pushing this back.
-    if (!sawline || !turned) end_turn = millis() + 100;
+    if (!sawline || !turned) end_turn = millis() + 180;
     turned = true;
   }
   else if (millis() > start_turn && !turned) {

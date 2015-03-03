@@ -9,6 +9,13 @@
 // Run function called by Loop::Update. Will send out heartbeat, radiation
 // alerts, status message, and read anything new.
 void Bluetooth::Run() {
+
+  // Read any new messages--Returns true if there are any new message, false
+  // otherwise.
+  Read();
+
+  if (supply_ == 0xFF) return; // Don't send new messages until we get a status.
+
   // Send out heartbeat if we are due to.
   if (millis() > nexthb_)
     SendHB();
@@ -23,10 +30,6 @@ void Bluetooth::Run() {
     SendStatus(state_);
 
   if (rad_level_ != kNone) FlagWave();
-
-  // Read any new messages--Returns true if there are any new message, false
-  // otherwise.
-  Read();
 }
 
 // Sends out heartbeat message and increments nexthb_.
@@ -131,11 +134,11 @@ void Bluetooth::FlagNull() {
 }
 
 void Bluetooth::FlagWave() {
-  nextwave_ = millis() + kWaveInterval;
   if (waving_ = false) {
     flagservo_.write(degreeflag_);
     waving_ = true;
     ChangeDegree();
+    nextwave_ = millis() + kWaveInterval;
   }
   if (waving_ = true) {
     if (millis() >= nextwave_) {

@@ -81,6 +81,7 @@ public:
     rad_level_(kNone),
     lcd(40, 41, 42, 43, 44, 45),
     nextwave_(0),
+    supply_(0xFF), // Impossible value; don't send anything till this is reset.
     degreeflag_(180),
     waving_(false) {
       state_.move = kStopped;
@@ -212,5 +213,3 @@ private:
 
 };
 #endif  //  __BLUETOOTH_H__
-
-
