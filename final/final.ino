@@ -49,7 +49,7 @@ Servo gripper;
 const int flatwrist = 103;
 const int tiltedwrist = flatwrist + 10;
 const int vertwrist = 13;
-const int upsidedownwrist = vertwrist + 5;
+const int upsidedownwrist = vertwrist + 3;
 const uint8_t wristservo = 8;
 Servo wrist;
 
