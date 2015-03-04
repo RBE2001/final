@@ -91,7 +91,6 @@ class Bluetooth : public Loop {
         stopped_(false),
         rad_level_(kNone),
         lcd(40, 41, 42, 43, 44, 45),
-        nextwave_(0),
         supply_(
             0xFF)  // Impossible value; don't send anything till this is reset.
   {
@@ -116,7 +115,6 @@ class Bluetooth : public Loop {
 
     if (rad_level_ == kNone) {
       lcd.print("None     ");
-      FlagNull();
     } else if (rad_level_ == kSpent) {
       lcd.print("Spent Rod");
     } else if (rad_level_ == kNew) {
