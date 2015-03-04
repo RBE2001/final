@@ -20,12 +20,16 @@ class Loop {
       Run();
     }
   }
+
   // The run method should contain whatever you want done at the appropriate
   // interval.
   virtual void Run()=0;
 
  private:
+  // Time at which to next call the Run() function.
   unsigned long endtime_;
+
+  // Period, in milliseconds, at which to call the Run() function.
   unsigned long period_;
 };
 

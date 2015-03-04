@@ -15,8 +15,9 @@
  */
 class ArmPID : public Loop {
  public:
-  // Constructor which takes a motor port, analog input for the pot, and initial
-  // PID values. Initializes loop to 100 Hz.
+  // Constructor which takes a motor port, analog input for the pot, digital
+  // input port for the bottom limit button, and initial PID values. Initializes
+  // loop to 100 Hz by default.
   // Also, this calls Servo::attach, which should not be called before the main
   // setup() function, so instances of this class should be initialized in or
   // after the setup() function.
@@ -30,12 +31,14 @@ class ArmPID : public Loop {
         sum_(0),
         setpoint_(0),
         button_(button),
-        Loop(1e4 /*100 Hz*/) {
+        Loop(1e4 /*10000us => 100 Hz*/) {
     motor_.attach(motor);
     pinMode(button_, INPUT_PULLUP);
   }
 
   // Set all of the PID values.
+  // Units of throttle (-90 to 90) per unit error (error is retrieved from ADC
+  // and so can range from -1023 to 1023).
   void set_pid(float p, float i, float d) {
     p_ = p;
     i_ = i;
@@ -49,6 +52,7 @@ class ArmPID : public Loop {
   }
 
   // Used by the Loop class; called once per cycle.
+  // Actually performs PID calculation and writes it to the motor.
   void Run() { motor_.write(OutToRaw(Calc())); }
 
  private:
@@ -61,7 +65,9 @@ class ArmPID : public Loop {
   // be inverted) to useful motor values (typically 0 - 180).
   uint8_t OutToRaw(int out) {
     if (!digitalRead(button_) && prev_error_ <= 0) {
+#ifdef DEBUG
       Serial.println("Not bothering...");
+#endif  // DEBUG
       return 90;
     }
     else return out + 90;

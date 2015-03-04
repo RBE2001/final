@@ -51,32 +51,41 @@ class LineFollower : public Loop {
   // occurring.
   void Calibrate();
 
+  // Set forwards line tracking PID values.
   void set_pid(float p, float i, float d) {
     p_ = p;
     i_ = i;
     d_ = d;
   }
 
+  // Set backwards line tracking PID values.
   void set_back_pid(float p, float i, float d) {
     bp_ = p;
     bi_ = i;
     bd_ = d;
   }
 
+  // Called at 20Hz; updates motors and line following.
   void Run() { Write(Calc()); }
 
   // Returns a num_sensors length array of sensor values, normalized to be from
   // 0 - 1000. 1000 = darkest, 0 = lightest.
   unsigned *sensors();
 
+  // Returns pointers to the left and write motors so that other functions can
+  // access the motors. Be sure to call enable_outputs(false) before using the
+  // Servos in external code.
   Servo *left() { return left_; }
   Servo *right() { return right_; }
 
   // Reads the current position of the sensor over the line.
   int Read() { return qtrrc.readLine(sensor_buffer); }
 
+  // Reverses the direction of the robot.
   void reverse(bool backwards) { backwards_ = backwards; }
 
+  // Enables/disables motor outputs while continuing to update PID/line sensor
+  // values.
   void enable_outputs(bool enable) { enable_outputs_ = enable; }
 
  private:
@@ -87,6 +96,8 @@ class LineFollower : public Loop {
   // them.
   void Write(int8_t pidout);
 
+  // Buffer for sensor values; 32 is an arbitrary number, chosen to ensure
+  // sufficient space for an arbitrarily sized sensor array.
   unsigned sensor_buffer[32];
 
   // Typical motorspeed when going straight.
@@ -98,6 +109,7 @@ class LineFollower : public Loop {
   // PID variables.
   int prev_error_;
   long sum_;
+  // PID gains for forwards and backwards.
   float p_, i_, d_;
   float bp_, bi_, bd_; // Backwards numbers.
 
@@ -108,8 +120,14 @@ class LineFollower : public Loop {
   QTRSensorsRC qtrrc;
   // Left and right drivetrain motors.
   Servo *left_, *right_;
+
+  // Flags to indicate directionality of motors.
   bool linv_, rinv_;
+
+  // Whether the robot is currently running forwards/backwards.
   bool backwards_;
+
+  // Whether to actually write values out to the motors.
   bool enable_outputs_;
 };
 #endif  // __LINEFOLLOWER_H__

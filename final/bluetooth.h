@@ -2,6 +2,11 @@
  * The Bluetooth class performs all the functions needed to run bluetooth on an
  * RBE2001 robot. This inherits from the Loop class so that it can run at a
  * moderately consistent interval.
+ * The Bluetooth class also handles displaying a radiation alert on an LCD
+ * screen on the robot.
+ * Note on numbering: Although the field numbers supply and storage tubes 1
+ * through 4, this code uses 0 based numbering, so the tubes are numbered 0
+ * through 3.
  */
 #ifndef __BLUETOOTH_H__
 #define __BLUETOOTH_H__
@@ -13,10 +18,8 @@
 #include "loop.h"
 #include <LiquidCrystal.h>
 
-
-class Bluetooth :
-public Loop {
-public:
+class Bluetooth : public Loop {
+ public:
   // Various enums for creating message packets.
 
   // Type of message being sent.
@@ -32,20 +35,29 @@ public:
 
   // Destination possibilities (will always be kBroadcast).
   enum Dest {
-    kBroadcast = 0x00,     };
+    kBroadcast = 0x00,
+  };
 
   // Radiation level of the current robot. kNone results in no radiation message
   // being broadcast.
   enum RadLevel {
-    kNone = 0x00, kSpent = 0x2C, kNew = 0xFF,     };
+    kNone = 0x00,
+    kSpent = 0x2C,
+    kNew = 0xFF,
+  };
 
   // Movement Status enum.
   enum Movement {
-    kStopped = 0x01, kTeleop = 0x02, kAuto = 0x03,     };
+    kStopped = 0x01,
+    kTeleop = 0x02,
+    kAuto = 0x03,
+  };
 
   // Gripper Status enum.
   enum Gripper {
-    kNoRod = 0x01, kHaveRod = 0x02,     };
+    kNoRod = 0x01,
+    kHaveRod = 0x02,
+  };
 
   // Operation Status enum.
   enum Operation {
@@ -70,32 +82,29 @@ public:
   // Declare a Bluetooth object with a specific robot number. Also, defines this
   // as running in a 25Hz loop.
   Bluetooth(uint8_t rnum = 8)
-:
-    rnum_(rnum),
-    pcol_(rnum),
-    Loop(4e4 /* 40ms */),
-    nexthb_(0),
-    nextrad_(0),
-    nextst_(0),
-    stopped_(false),
-    rad_level_(kNone),
-    lcd(40, 41, 42, 43, 44, 45),
-    nextwave_(0),
-    supply_(0xFF), // Impossible value; don't send anything till this is reset.
-    degreeflag_(180),
-    waving_(false) {
-      state_.move = kStopped;
-      state_.grip = kNoRod;
-      state_.op = kIdle;
-      // Initialize bluetooth.
-      pinMode(14, INPUT_PULLUP);
-      pinMode(15, INPUT_PULLUP);
-      Serial3.begin(115200);
-      lcd.begin(16, 2);              // set up the LCD
-      lcd.print("Rad Level:"); // print rad message
-
-      flagservo_.attach(kFlagPin);
-    }
+      : rnum_(rnum),
+        pcol_(rnum),
+        Loop(4e4 /* 40ms */),
+        nexthb_(0),
+        nextrad_(0),
+        nextst_(0),
+        stopped_(false),
+        rad_level_(kNone),
+        lcd(40, 41, 42, 43, 44, 45),
+        nextwave_(0),
+        supply_(
+            0xFF)  // Impossible value; don't send anything till this is reset.
+  {
+    state_.move = kStopped;
+    state_.grip = kNoRod;
+    state_.op = kIdle;
+    // Initialize bluetooth.
+    pinMode(14, INPUT_PULLUP);
+    pinMode(15, INPUT_PULLUP);
+    Serial3.begin(115200);
+    lcd.begin(16, 2);         // set up the LCD
+    lcd.print("Rad Level:");  // print rad message
+  }
 
   // Run function called by Loop::Update. Will send out heartbeat, radiation
   // alerts, status message, and read anything new.
@@ -103,7 +112,7 @@ public:
 
   void set_radlevel(RadLevel radlevel) {
     rad_level_ = radlevel;
-    lcd.setCursor(0,1);
+    lcd.setCursor(0, 1);
 
     if (rad_level_ == kNone) {
       lcd.print("None     ");
@@ -116,23 +125,18 @@ public:
       lcd.print("Error    ");
   }
 
-  void set_status(Status state) {
-    state_ = state;
-  }
+  // Set robot status.
+  void set_status(Status state) { state_ = state; }
 
-  bool stopped() {
-    return stopped_;
-  }
+  // Returns whether or not the robot should be stopped, per the received
+  // bluetooth messages.
+  bool stopped() { return stopped_; }
 
   // These return the current states of the supply and storage tubes as one-byte
   // bitmasks where the 4 least significant bits each refer to the occupation
   // state of a single tube.
-  uint8_t raw_supply() {
-    return supply_;
-  }
-  uint8_t raw_storage() {
-    return storage_;
-  }
+  uint8_t raw_supply() { return supply_; }
+  uint8_t raw_storage() { return storage_; }
 
   // These return true if and only if the specified tube (0 - 3) is currently
   // occupied.
@@ -145,11 +149,10 @@ public:
     return (storage_ >> tube) & 0x01;
   }
 
-  Status status() {
-    return state_;
-  }
+  // Return robot status.
+  Status status() { return state_; }
 
-private:
+ private:
   // Note: All of the Send* functions increment counters (next*_) to indicate
   // when they should next be called. However, they will not prevent you from
   // calling them too early, so be sure to include some sort of if statement
@@ -166,7 +169,8 @@ private:
   // Sends out a robot status message with the provided Status.
   void SendStatus(Status state);
 
-  // Reads from the bluetooth attachment and updates any data that needs updating.
+  // Reads from the bluetooth attachment and updates any data that needs
+  // updating.
   // Returns true if a relevant packet was received, false otherwise.
   bool Read();
 
@@ -196,20 +200,5 @@ private:
   bool stopped_;
   // Current information to be sent in next status message.
   Status state_;
-
-
-  // Stuff for waving the flag.
-  const int kFlagPin = 6;
-  unsigned long nextwave_;
-  const unsigned long kWaveInterval = 300; // millis
-  int degreeflag_;
-
-  bool waving_;
-  Servo flagservo_;
-
-  void ChangeDegree();
-  void FlagNull();
-  void FlagWave();
-
 };
 #endif  //  __BLUETOOTH_H__

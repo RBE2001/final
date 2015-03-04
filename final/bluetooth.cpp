@@ -1,4 +1,5 @@
 #include "bluetooth.h"
+// See bluetooth.h for more information.
 
 #include "Arduino.h"
 #include <BluetoothClient.h>
@@ -9,27 +10,22 @@
 // Run function called by Loop::Update. Will send out heartbeat, radiation
 // alerts, status message, and read anything new.
 void Bluetooth::Run() {
-
   // Read any new messages--Returns true if there are any new message, false
   // otherwise.
   Read();
 
-  if (supply_ == 0xFF) return; // Don't send new messages until we get a status.
+  if (supply_ == 0xFF)
+    return;  // Don't send new messages until we get a status.
 
   // Send out heartbeat if we are due to.
-  if (millis() > nexthb_)
-    SendHB();
+  if (millis() > nexthb_) SendHB();
 
   // Send out radiation alert if we are due to and if the current radiation
   // level necessitates it.
-  if ((millis() > nextrad_) && rad_level_)
-    SendRad(rad_level_);
+  if ((millis() > nextrad_) && rad_level_) SendRad(rad_level_);
 
   // Send out status message if appropriate time has passed.
-  if ((millis() > nextst_))
-    SendStatus(state_);
-
-  if (rad_level_ != kNone) FlagWave();
+  if ((millis() > nextst_)) SendStatus(state_);
 }
 
 // Sends out heartbeat message and increments nexthb_.
@@ -96,8 +92,7 @@ bool Bluetooth::Read() {
     // Process packet; if packet is invalid (eg, bad checksum), falls through.
     if (pcol_.getData(pkt, data, type)) {
       // Checks that the packet is addressed either to us or to everyone.
-      if (pkt[4] != kBroadcast && pkt[4] != rnum_)
-        return false;
+      if (pkt[4] != kBroadcast && pkt[4] != rnum_) return false;
       // Update status variables depending on type of message.
       switch ((MsgType)type) {
         case kStorage:
@@ -119,34 +114,4 @@ bool Bluetooth::Read() {
     }
   }
   return false;
-}
-
-void Bluetooth::ChangeDegree() {
-  if (degreeflag_ = 180) (degreeflag_ = 0);
-  if (degreeflag_ = 0) (degreeflag_ = 180);
-
-  nextwave_ = millis() + kWaveInterval;
-}
-
-void Bluetooth::FlagNull() {
-  flagservo_.write(90);
-  waving_ = false;
-}
-
-void Bluetooth::FlagWave() {
-  if (waving_ = false) {
-    flagservo_.write(degreeflag_);
-    waving_ = true;
-    ChangeDegree();
-    nextwave_ = millis() + kWaveInterval;
-  }
-  if (waving_ = true) {
-    if (millis() >= nextwave_) {
-      flagservo_.write(degreeflag_);
-      ChangeDegree();
-    }
-    if (millis() < nextwave_) {
-      flagservo_.write(degreeflag_);
-    }
-  }
 }
