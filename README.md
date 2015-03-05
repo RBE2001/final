@@ -1,5 +1,6 @@
 # RBE 2001 final
-Code for final project for 2015 C-term RBE2001 group 8.
+Code for final project for WPI 2015 C-term RBE2001 group 8.
+Code can be found at https://github.com/RBE2001/final
 
 ## Installation
 In order to use pololu line following sensor, grab code from:
