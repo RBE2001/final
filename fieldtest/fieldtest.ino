@@ -5,6 +5,9 @@
  * Note: In order to include bluetooth.h properly, you may need to do some
  * wrangling with your compiler and may just need to copy bluetooth.h into the
  * same directory as this file.
+ * This is not a final product and did not run in any way on the final robot; it
+ * is purely for prototyping/testing purposes.
+ * See the README for more information.
  */
 #include <Servo.h>
 #include <QTRSensors.h>

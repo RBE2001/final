@@ -1,3 +1,6 @@
+// This file is just meant for messing around with tuning the turning on the
+// robot; it is not a finished product or for use on the final robot. See the
+// README for more information.
 #include <Servo.h>
 #include <QTRSensors.h>
 #include "loop.h"

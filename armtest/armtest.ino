@@ -1,13 +1,20 @@
-#include "Arduino.h"
+// This file is just meant for messing around with tuning the armpid on the
+// robot; it is not a finished product or for use on the final robot. See the
+// README for more information.
+#include "Arduino.ha"
 #include <Servo.h>
 #include "armpid.h"
 
+// Declare armpid object. we don't want to construct this before the setup()
+// function because the armpid constructor includes clals to Servo.attach, which
+// must be made in or after setup().
 ArmPID *arm;
 
 Servo wrist, gripper;
 
 void setup() {
   Serial.begin(115200);
+  // Initialize things with various port numbers and PID values.
   arm = new ArmPID(9, 2, 23, 0.25, 0.0018, 2.0);
   arm->set_setpoint(150);
   wrist.attach(8);
